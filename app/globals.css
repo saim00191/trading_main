@@ -1,0 +1,277 @@
+@import 'tailwindcss';
+@import 'tw-animate-css';
+
+@custom-variant dark (&:is(.dark *));
+
+:root {
+  /* Dark theme colors for trading dashboard */
+  --background: #020A15;
+  --foreground: #FFFFFF;
+  --card: #0F1729;
+  --card-foreground: #FFFFFF;
+  --popover: #0F1729;
+  --popover-foreground: #FFFFFF;
+  --primary: #00D1FF;
+  --primary-foreground: #020A15;
+  --secondary: #1A2847;
+  --secondary-foreground: #FFFFFF;
+  --muted: #4B5563;
+  --muted-foreground: #A5B0BC;
+  --accent: #00D1FF;
+  --accent-foreground: #020A15;
+  --success: #10B981;
+  --warning: #F59E0B;
+  --danger: #EF4444;
+  --info: #3B82F6;
+  --destructive: #EF4444;
+  --destructive-foreground: #FFFFFF;
+  --border: rgba(0, 209, 255, 0.1);
+  --input: #0F1729;
+  --ring: #00D1FF;
+  --chart-1: #00D1FF;
+  --chart-2: #10B981;
+  --chart-3: #F59E0B;
+  --chart-4: #EF4444;
+  --chart-5: #8B5CF6;
+  --radius: 0.625rem;
+  --sidebar: #0F1729;
+  --sidebar-foreground: #FFFFFF;
+  --sidebar-primary: #00D1FF;
+  --sidebar-primary-foreground: #020A15;
+  --sidebar-accent: #00D1FF;
+  --sidebar-accent-foreground: #020A15;
+  --sidebar-border: rgba(0, 209, 255, 0.1);
+  --sidebar-ring: #00D1FF;
+  --font-poppins: 'Poppins';
+}
+
+.dark {
+  --background: #020A15;
+  --foreground: #FFFFFF;
+  --card: #0F1729;
+  --card-foreground: #FFFFFF;
+  --popover: #0F1729;
+  --popover-foreground: #FFFFFF;
+  --primary: #00D1FF;
+  --primary-foreground: #020A15;
+  --secondary: #1A2847;
+  --secondary-foreground: #FFFFFF;
+  --muted: #4B5563;
+  --muted-foreground: #A5B0BC;
+  --accent: #00D1FF;
+  --accent-foreground: #020A15;
+  --success: #10B981;
+  --warning: #F59E0B;
+  --danger: #EF4444;
+  --info: #3B82F6;
+  --destructive: #EF4444;
+  --destructive-foreground: #FFFFFF;
+  --border: rgba(0, 209, 255, 0.1);
+  --input: #0F1729;
+  --ring: #00D1FF;
+  --chart-1: #00D1FF;
+  --chart-2: #10B981;
+  --chart-3: #F59E0B;
+  --chart-4: #EF4444;
+  --chart-5: #8B5CF6;
+  --sidebar: #0F1729;
+  --sidebar-foreground: #FFFFFF;
+  --sidebar-primary: #00D1FF;
+  --sidebar-primary-foreground: #020A15;
+  --sidebar-accent: #00D1FF;
+  --sidebar-accent-foreground: #020A15;
+  --sidebar-border: rgba(0, 209, 255, 0.1);
+  --sidebar-ring: #00D1FF;
+}
+
+@theme inline {
+  --font-sans: var(--font-poppins), system-ui, sans-serif;
+  --font-mono: 'Geist Mono', 'Geist Mono Fallback', monospace;
+  --color-background: var(--background);
+  --color-foreground: var(--foreground);
+  --color-card: var(--card);
+  --color-card-foreground: var(--card-foreground);
+  --color-popover: var(--popover);
+  --color-popover-foreground: var(--popover-foreground);
+  --color-primary: var(--primary);
+  --color-primary-foreground: var(--primary-foreground);
+  --color-secondary: var(--secondary);
+  --color-secondary-foreground: var(--secondary-foreground);
+  --color-muted: var(--muted);
+  --color-muted-foreground: var(--muted-foreground);
+  --color-accent: var(--accent);
+  --color-accent-foreground: var(--accent-foreground);
+  --color-destructive: var(--destructive);
+  --color-destructive-foreground: var(--destructive-foreground);
+  --color-border: var(--border);
+  --color-input: var(--input);
+  --color-ring: var(--ring);
+  --color-chart-1: var(--chart-1);
+  --color-chart-2: var(--chart-2);
+  --color-chart-3: var(--chart-3);
+  --color-chart-4: var(--chart-4);
+  --color-chart-5: var(--chart-5);
+  --color-success: var(--success);
+  --color-warning: var(--warning);
+  --color-danger: var(--danger);
+  --color-info: var(--info);
+  --radius-sm: calc(var(--radius) - 4px);
+  --radius-md: calc(var(--radius) - 2px);
+  --radius-lg: var(--radius);
+  --radius-xl: calc(var(--radius) + 4px);
+  --color-sidebar: var(--sidebar);
+  --color-sidebar-foreground: var(--sidebar-foreground);
+  --color-sidebar-primary: var(--sidebar-primary);
+  --color-sidebar-primary-foreground: var(--sidebar-primary-foreground);
+  --color-sidebar-accent: var(--sidebar-accent);
+  --color-sidebar-accent-foreground: var(--sidebar-accent-foreground);
+  --color-sidebar-border: var(--sidebar-border);
+  --color-sidebar-ring: var(--sidebar-ring);
+}
+
+@layer base {
+  * {
+    @apply border-border outline-ring/50;
+  }
+  body {
+    @apply bg-background text-foreground;
+  }
+}
+
+/* Custom animations for trading dashboard */
+@layer utilities {
+  @keyframes fadeIn {
+    from {
+      opacity: 0;
+    }
+    to {
+      opacity: 1;
+    }
+  }
+
+  @keyframes slideUp {
+    from {
+      transform: translateY(10px);
+      opacity: 0;
+    }
+    to {
+      transform: translateY(0);
+      opacity: 1;
+    }
+  }
+
+  @keyframes slideInLeft {
+    from {
+      transform: translateX(-10px);
+      opacity: 0;
+    }
+    to {
+      transform: translateX(0);
+      opacity: 1;
+    }
+  }
+
+  @keyframes scaleIn {
+    from {
+      transform: scale(0.95);
+      opacity: 0;
+    }
+    to {
+      transform: scale(1);
+      opacity: 1;
+    }
+  }
+
+  @keyframes neonGlow {
+    0%, 100% {
+      box-shadow: 0 0 10px rgba(0, 209, 255, 0.5), 0 0 20px rgba(0, 209, 255, 0.3);
+    }
+    50% {
+      box-shadow: 0 0 20px rgba(0, 209, 255, 0.8), 0 0 40px rgba(0, 209, 255, 0.5);
+    }
+  }
+
+  @keyframes pulse-glow {
+    0%, 100% {
+      opacity: 1;
+    }
+    50% {
+      opacity: 0.7;
+    }
+  }
+
+  .animate-fade-in {
+    animation: fadeIn 0.5s ease-in-out;
+  }
+
+  .animate-slide-up {
+    animation: slideUp 0.5s ease-out;
+  }
+
+  .animate-slide-in-left {
+    animation: slideInLeft 0.5s ease-out;
+  }
+
+  .animate-scale-in {
+    animation: scaleIn 0.3s ease-out;
+  }
+
+  .animate-neon-glow {
+    animation: neonGlow 2s ease-in-out infinite;
+  }
+
+  .animate-pulse-glow {
+    animation: pulse-glow 2s ease-in-out infinite;
+  }
+
+  /* Stagger animations for lists */
+  .stagger-item {
+    animation: slideUp 0.5s ease-out backwards;
+  }
+
+  .stagger-item:nth-child(1) {
+    animation-delay: 0.1s;
+  }
+
+  .stagger-item:nth-child(2) {
+    animation-delay: 0.2s;
+  }
+
+  .stagger-item:nth-child(3) {
+    animation-delay: 0.3s;
+  }
+
+  .stagger-item:nth-child(4) {
+    animation-delay: 0.4s;
+  }
+
+  .stagger-item:nth-child(5) {
+    animation-delay: 0.5s;
+  }
+
+  /* Hover effects */
+  .hover-scale {
+    @apply transition-transform duration-300 hover:scale-105;
+  }
+
+  .hover-glow {
+    @apply transition-all duration-300 hover:shadow-lg hover:shadow-primary/50;
+  }
+
+  /* Utility classes */
+  .border-primary {
+    @apply border-primary;
+  }
+
+  .text-primary {
+    @apply text-primary;
+  }
+
+  .bg-card {
+    @apply bg-card;
+  }
+
+  .backdrop-blur-sm-custom {
+    backdrop-filter: blur(4px);
+  }
+}
