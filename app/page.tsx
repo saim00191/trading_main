@@ -15,12 +15,12 @@ import SecuritySection from '@/components/landing/SecuritySection';
 import TestimonialsSection from '@/components/landing/TestiomonialsSection';
 import FinalCTASection from '@/components/landing/FinalCTASection';
 import Footer from '@/components/landing/Footer';
+import { selectUserEmail } from '@/store/UserLoggedInSlice';
 
 export default function Home() {
   const router = useRouter();
-  const isAuthenticated = useSelector(
-    (state: RootState) => state.auth.isAuthenticated
-  );
+  // ✅ Get email from Redux
+  const userEmail = useSelector(selectUserEmail);
 
   return (
     <div className="bg-[#0a0a0f]">
@@ -61,7 +61,7 @@ export default function Home() {
         </motion.h1>
 
         <div className="flex items-center gap-4">
-          {isAuthenticated ? (
+          {userEmail ? (
             <>
               <Link
                 href="/dashboard"
