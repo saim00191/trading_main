@@ -9,6 +9,7 @@ import { AnimatedButton } from '@/components/common/AnimatedButton';
 import { TrendingUp, BarChart3, Target, Zap, AlertCircle, Plus } from 'lucide-react';
 import { LineChart, Line, AreaChart, Area, BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, Legend, ResponsiveContainer } from 'recharts';
 import { mockDashboardMetrics, mockAnalyticsData } from '@/lib/mock-data';
+import { ProtectedRoute } from './ProtectedRoute';
 
 export default function DashboardPage() {
   const [showNewTrade, setShowNewTrade] = useState(false);
@@ -22,6 +23,8 @@ export default function DashboardPage() {
   }));
 
   return (
+     <ProtectedRoute>
+
     <DashboardLayout title="Dashboard" subtitle="Monitor your trading performance at a glance">
       {/* Key Metrics */}
       <section className="mb-8">
@@ -172,5 +175,6 @@ export default function DashboardPage() {
         </div>
       </section>
     </DashboardLayout>
+     </ProtectedRoute>
   );
 }

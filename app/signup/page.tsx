@@ -139,8 +139,13 @@ const handleSubmit = async (e: React.FormEvent) => {
 
       // Redirect to Verify Email page
       router.push('/verify-email');
-    } catch (error: any) {
-      setErrors({ form: error.message || 'Failed to send OTP. Try again.' });
+    }
+      catch (err: unknown) {
+      if (err instanceof Error) {
+        setError(err.message);
+      } else {
+        setErrors({ form: "Failed to send OTP. Try again." });
+      }
     } finally {
       setIsLoadingState(false);
       dispatch(setLoading(false));

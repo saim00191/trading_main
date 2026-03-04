@@ -11,6 +11,7 @@ import { Button } from '@/components/auth/Button';
 import { setUser, setError, setLoading } from '@/store/authSlice';
 import { RootState, AppDispatch } from '@/store/store';
 import { validateEmail, validatePassword } from '@/lib/validation';
+import { setEmail } from '@/store/UserLoggedInSlice';
 import { loginUser, setupPersistence } from '@/lib/authService';
 
 export default function LoginPage() {
@@ -78,40 +79,36 @@ export default function LoginPage() {
     setErrors(newErrors);
     return Object.keys(newErrors).length === 0;
   };
-
- const handleSubmit = async (e: React.FormEvent) => {
+const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-
     if (!validateForm()) return;
 
     setIsLoadingState(true);
     dispatch(setLoading(true));
 
     try {
-      const result = await loginUser({
-        email: formData.email,
-        password: formData.password,
-      });
-
+      const result = await loginUser({ email: formData.email, password: formData.password });
       if (result.success && result.user) {
-        if (rememberMe) {
-          localStorage.setItem('rememberMe', 'true');
-        }
+        if (rememberMe) localStorage.setItem('rememberMe', 'true');
 
         dispatch(setUser(result.user));
+        dispatch(setEmail(formData.email)); // ✅ Save email to Redux + localStorage
+
+        // console.log('Login successful:', result.user);
+        // console.log("Sending email to Redux:", formData.email);
+
         router.push('/dashboard');
       } else {
         setErrors({ form: result.error || 'Login failed. Please try again.' });
       }
-    } catch (error) {
-      setErrors({
-        form: 'An unexpected error occurred. Please try again.',
-      });
+    } catch {
+      setErrors({ form: 'An unexpected error occurred. Please try again.' });
     } finally {
       setIsLoadingState(false);
       dispatch(setLoading(false));
     }
   };
+
 
   return (
     <AuthLayout

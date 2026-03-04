@@ -1,10 +1,12 @@
-import { Trade, DashboardMetrics, AnalyticsData, TradingRule, Goal } from './types';
+import { Trade, DashboardMetrics, AnalyticsData, TradingRule, Goal, TradeType, SessionType } from './types';
 
 // Generate mock trades
 export const generateMockTrades = (): Trade[] => {
   const pairs = ['EUR/USD', 'GBP/USD', 'USD/JPY', 'AUD/USD', 'USD/CAD'];
   const strategies = ['MA Crossover', 'Support/Resistance', 'Breakout', 'Pullback', 'Trend Following'];
   const trades: Trade[] = [];
+  const tradeTypes: TradeType[] = ['SCALP', 'DAY', 'SWING'];
+  const sessions: SessionType[] = ['ASIA', 'EUROPE', 'US', 'OVERLAP'];
 
   for (let i = 0; i < 50; i++) {
     const entry = 1.0500 + Math.random() * 0.05;
@@ -26,9 +28,9 @@ export const generateMockTrades = (): Trade[] => {
       pnl,
       pnlPercent: Math.round((pnl / 10000) * 100) / 100,
       status: 'CLOSED',
-      tradeType: ['SCALP', 'DAY', 'SWING'][Math.floor(Math.random() * 3)] as any,
+        tradeType: tradeTypes[Math.floor(Math.random() * tradeTypes.length)],
       strategy: strategies[Math.floor(Math.random() * strategies.length)],
-      session: ['ASIA', 'EUROPE', 'US', 'OVERLAP'][Math.floor(Math.random() * 4)] as any,
+      session: sessions[Math.floor(Math.random() * sessions.length)],
       emotionBefore: Math.floor(Math.random() * 10) + 1,
       emotionAfter: Math.floor(Math.random() * 10) + 1,
       notes: 'Trade executed according to plan',

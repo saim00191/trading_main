@@ -11,10 +11,27 @@ import { mockGoals } from '@/lib/mock-data';
 import { Goal } from '@/lib/types';
 import { toast } from 'sonner';
 
+/* ============================
+   Additional Derived Types
+============================ */
+
+type GoalType = Goal['type'];
+type GoalPeriod = Goal['period'];
+type GoalStatus = Goal['status'];
+
+interface GoalFormData {
+  name: string;
+  targetValue: string;
+  currentValue: string;
+  type: GoalType;
+  period: GoalPeriod;
+}
+
 export default function GoalsPage() {
   const [goals, setGoals] = useState<Goal[]>(mockGoals);
-  const [isModalOpen, setIsModalOpen] = useState(false);
-  const [formData, setFormData] = useState({
+  const [isModalOpen, setIsModalOpen] = useState<boolean>(false);
+
+  const [formData, setFormData] = useState<GoalFormData>({
     name: '',
     targetValue: '',
     currentValue: '',
@@ -22,20 +39,20 @@ export default function GoalsPage() {
     period: 'MONTHLY',
   });
 
-  const goalTypes = [
+  const goalTypes: { value: GoalType; label: string }[] = [
     { value: 'PROFIT', label: 'Profit Target' },
     { value: 'TRADES', label: 'Number of Trades' },
     { value: 'WIN_RATE', label: 'Win Rate %' },
     { value: 'RISK_LIMIT', label: 'Risk Limit %' },
   ];
 
-  const periods = [
+  const periods: { value: GoalPeriod; label: string }[] = [
     { value: 'DAILY', label: 'Daily' },
     { value: 'WEEKLY', label: 'Weekly' },
     { value: 'MONTHLY', label: 'Monthly' },
   ];
 
-  const handleAddGoal = (e: React.FormEvent) => {
+  const handleAddGoal = (e: React.FormEvent<HTMLFormElement>) => {
     e.preventDefault();
 
     const newGoal: Goal = {
@@ -43,15 +60,17 @@ export default function GoalsPage() {
       name: formData.name,
       targetValue: parseFloat(formData.targetValue),
       currentValue: parseFloat(formData.currentValue),
-      type: formData.type as any,
-      period: formData.period as any,
+      type: formData.type,
+      period: formData.period,
       dateStart: new Date(),
       dateEnd: new Date(Date.now() + 30 * 24 * 60 * 60 * 1000),
       status: 'ACTIVE',
     };
 
     setGoals([...goals, newGoal]);
+
     toast.success('Goal added successfully!');
+
     setFormData({
       name: '',
       targetValue: '',
@@ -59,22 +78,26 @@ export default function GoalsPage() {
       type: 'PROFIT',
       period: 'MONTHLY',
     });
+
     setIsModalOpen(false);
   };
 
-  const getGoalProgress = (goal: Goal) => {
+  const getGoalProgress = (goal: Goal): number => {
     return (goal.currentValue / goal.targetValue) * 100;
   };
 
-  const getGoalStatus = (goal: Goal) => {
+  const getGoalStatus = (goal: Goal): GoalStatus | 'ON_TRACK' | 'IN_PROGRESS' | 'BEHIND' => {
     const progress = getGoalProgress(goal);
+
     if (progress >= 100) return 'COMPLETED';
     if (progress >= 75) return 'ON_TRACK';
     if (progress >= 50) return 'IN_PROGRESS';
     return 'BEHIND';
   };
 
-  const getGoalStatusColor = (status: string) => {
+  const getGoalStatusColor = (
+    status: GoalStatus | 'ON_TRACK' | 'IN_PROGRESS' | 'BEHIND'
+  ): string => {
     switch (status) {
       case 'COMPLETED':
         return 'bg-success/10 border-success/30 text-success';
@@ -89,7 +112,7 @@ export default function GoalsPage() {
     }
   };
 
-  const getGoalIcon = (type: string) => {
+  const getGoalIcon = (type: GoalType) => {
     switch (type) {
       case 'PROFIT':
         return <TrendingUp size={20} />;
@@ -104,13 +127,14 @@ export default function GoalsPage() {
     }
   };
 
-  const getGoalTypeLabel = (type: string) => {
+  const getGoalTypeLabel = (type: GoalType): string => {
     const found = goalTypes.find((t) => t.value === type);
     return found ? found.label : type;
   };
 
   const activeGoals = goals.filter((g) => g.status === 'ACTIVE');
   const completedGoals = goals.filter((g) => g.status === 'COMPLETED');
+
 
   return (
     <DashboardLayout title="Goals & Targets" subtitle="Set and track your trading objectives">
@@ -271,7 +295,7 @@ export default function GoalsPage() {
             <label className="block text-sm font-medium text-foreground mb-2">Goal Type *</label>
             <select
               value={formData.type}
-              onChange={(e) => setFormData({ ...formData, type: e.target.value })}
+              onChange={(e) => setFormData({ ...formData, type: e.target.value as GoalType })}
               className="w-full rounded-lg border border-border/50 bg-input px-4 py-2 text-foreground focus:border-primary focus:outline-none focus:ring-2 focus:ring-primary/20 transition-all"
             >
               {goalTypes.map((type) => (
@@ -314,7 +338,7 @@ export default function GoalsPage() {
             <label className="block text-sm font-medium text-foreground mb-2">Period *</label>
             <select
               value={formData.period}
-              onChange={(e) => setFormData({ ...formData, period: e.target.value })}
+              onChange={(e) => setFormData({ ...formData, period: e.target.value as GoalPeriod })}
               className="w-full rounded-lg border border-border/50 bg-input px-4 py-2 text-foreground focus:border-primary focus:outline-none focus:ring-2 focus:ring-primary/20 transition-all"
             >
               {periods.map((period) => (

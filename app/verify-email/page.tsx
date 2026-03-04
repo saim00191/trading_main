@@ -14,27 +14,25 @@ import { signUpUser } from '@/lib/authService';
 import { sendOtpToEmail, verifyOtpFirestore } from '@/lib/otpService'; 
 
 export default function VerifyEmailPage() {
-  const router = useRouter();
+   const router = useRouter();
   const dispatch = useDispatch<AppDispatch>();
 
-  // Get temporary signup data from Redux
   const tempSignupData = useSelector(
     (state: RootState) => state.auth.tempSignupData
   );
 
-  // Local states
-  const [otp, setOtp] = useState('');
-  const [error, setErrorState] = useState('');
+  const [otp, setOtp] = useState("");
+  const [error, setErrorState] = useState("");
   const [isLoading, setIsLoadingState] = useState(false);
   const [timeLeft, setTimeLeft] = useState(60);
   const [canResend, setCanResend] = useState(false);
 
   // Redirect if no signup data
   useEffect(() => {
-    if (!tempSignupData?.email) router.push('/signup');
+    if (!tempSignupData?.email) router.push("/signup");
   }, [tempSignupData, router]);
 
-  // Countdown timer effect
+  // Countdown
   useEffect(() => {
     if (timeLeft <= 0) {
       setCanResend(true);
@@ -44,32 +42,31 @@ export default function VerifyEmailPage() {
     return () => clearTimeout(timer);
   }, [timeLeft]);
 
-  // Handle OTP input completion
   const handleOTPComplete = (value: string) => {
     if (value.length === 6) verifyOTP(value);
   };
 
-  // Verify OTP and create account
   const verifyOTP = async (otpValue: string) => {
+    if (!tempSignupData) return;
+
     setIsLoadingState(true);
     dispatch(setLoading(true));
-    setErrorState('');
+    setErrorState("");
 
     try {
-      // Validate OTP format
       if (!/^\d{6}$/.test(otpValue)) {
-        setErrorState('Enter a valid 6-digit OTP');
+        setErrorState("Enter a valid 6-digit OTP");
         return;
       }
 
-      // Verify OTP with your backend / Firestore
-      const verified = await verifyOtpFirestore(tempSignupData?.email, otpValue);
+      // Verify OTP with Firestore
+      const verified = await verifyOtpFirestore(tempSignupData.email, otpValue);
       if (!verified) {
-        setErrorState('Invalid OTP. Please try again.');
+        setErrorState("Invalid OTP. Please try again.");
         return;
       }
 
-      // Create Firebase account now
+      // Create user in Firebase & store in Supabase
       const result = await signUpUser({
         username: tempSignupData.username,
         email: tempSignupData.email,
@@ -78,33 +75,41 @@ export default function VerifyEmailPage() {
       });
 
       if (!result.success) {
-        setErrorState(result.error || 'Account creation failed.');
+        setErrorState(result.error || "Account creation failed.");
         return;
       }
 
-      // Redirect to login
-      router.push('/login');
-    } catch (err: any) {
-      setErrorState(err.message || 'Something went wrong. Please try again.');
+      // Success → redirect to login
+      router.push("/login");
+    } catch (err: unknown) {
+      if (err instanceof Error) {
+        setErrorState(err.message);
+      } else {
+        setErrorState("Something went wrong.");
+      }
     } finally {
       setIsLoadingState(false);
       dispatch(setLoading(false));
     }
   };
 
-  // Resend OTP
   const handleResendOTP = async () => {
     if (!tempSignupData?.email) return;
+
     setIsLoadingState(true);
-    setErrorState('');
+    setErrorState("");
 
     try {
       await sendOtpToEmail(tempSignupData.email);
       setTimeLeft(60);
       setCanResend(false);
-      setOtp('');
-    } catch (err: any) {
-      setErrorState('Failed to resend OTP. Please try again.');
+      setOtp("");
+    } catch (err: unknown) {
+      if (err instanceof Error) {
+        setErrorState(err.message);
+      } else {
+        setErrorState("Failed to resend OTP. Please try again.");
+      }
     } finally {
       setIsLoadingState(false);
     }

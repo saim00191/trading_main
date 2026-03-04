@@ -8,43 +8,57 @@ import { AnimatedButton } from '@/components/common/AnimatedButton';
 import { Modal } from '@/components/common/Modal';
 import { AlertCircle, Calculator, Target, TrendingDown } from 'lucide-react';
 
+
+type RiskCalcResult = {
+  account: number;
+  riskPercent: number;
+  riskAmount: string; // using string because you formatted it with `.toFixed(2)`
+};
+
+type PosCalcResult = {
+  entry: number;
+  stop: number;
+  riskAmount: number;
+  pipDifference: string; // formatted with `.toFixed(4)`
+  posSize: string;       // formatted with `.toFixed(2)`
+};
+
 export default function RiskManagementPage() {
-  const [showRiskCalc, setShowRiskCalc] = useState(false);
-  const [showPosCalc, setShowPosCalc] = useState(false);
-  const [riskCalcResult, setRiskCalcResult] = useState<any>(null);
-  const [posCalcResult, setPosCalcResult] = useState<any>(null);
+  // const [showRiskCalc, setShowRiskCalc] = useState(false);
+  // const [showPosCalc, setShowPosCalc] = useState(false);
+  const [riskCalcResult, setRiskCalcResult] = useState<RiskCalcResult | null>(null);
+const [posCalcResult, setPosCalcResult] = useState<PosCalcResult | null>(null);
 
-  const handleRiskCalc = (e: React.FormEvent<HTMLFormElement>) => {
-    e.preventDefault();
-    const formData = new FormData(e.currentTarget);
-    const account = parseFloat(formData.get('account') as string);
-    const riskPercent = parseFloat(formData.get('riskPercent') as string);
+const handleRiskCalc = (e: React.FormEvent<HTMLFormElement>) => {
+  e.preventDefault();
+  const formData = new FormData(e.currentTarget);
+  const account = parseFloat(formData.get('account') as string);
+  const riskPercent = parseFloat(formData.get('riskPercent') as string);
 
-    setRiskCalcResult({
-      riskAmount: (account * (riskPercent / 100)).toFixed(2),
-      account,
-      riskPercent,
-    });
-  };
+  setRiskCalcResult({
+    riskAmount: (account * (riskPercent / 100)).toFixed(2),
+    account,
+    riskPercent,
+  });
+};
 
-  const handlePosCalc = (e: React.FormEvent<HTMLFormElement>) => {
-    e.preventDefault();
-    const formData = new FormData(e.currentTarget);
-    const entry = parseFloat(formData.get('entry') as string);
-    const stop = parseFloat(formData.get('stop') as string);
-    const riskAmount = parseFloat(formData.get('riskAmount') as string);
+const handlePosCalc = (e: React.FormEvent<HTMLFormElement>) => {
+  e.preventDefault();
+  const formData = new FormData(e.currentTarget);
+  const entry = parseFloat(formData.get('entry') as string);
+  const stop = parseFloat(formData.get('stop') as string);
+  const riskAmount = parseFloat(formData.get('riskAmount') as string);
 
-    const pipDifference = Math.abs(entry - stop);
-    const posSize = (riskAmount / pipDifference).toFixed(2);
+  const pipDifference = Math.abs(entry - stop);
 
-    setPosCalcResult({
-      entry,
-      stop,
-      riskAmount,
-      pipDifference: pipDifference.toFixed(4),
-      posSize,
-    });
-  };
+  setPosCalcResult({
+    entry,
+    stop,
+    riskAmount,
+    pipDifference: pipDifference.toFixed(4),
+    posSize: (riskAmount / pipDifference).toFixed(2),
+  });
+};
 
   return (
     <DashboardLayout title="Risk Management" subtitle="Manage and monitor your trading risk">

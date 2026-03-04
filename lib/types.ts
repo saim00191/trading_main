@@ -1,9 +1,16 @@
-// Trade related types
+// --------------------
+// Trade Related Types
+// --------------------
+export type TradeSide = 'BUY' | 'SELL';
+export type TradeStatus = 'OPEN' | 'CLOSED' | 'PENDING';
+export type TradeType = 'SCALP' | 'DAY' | 'SWING' | 'POSITION';
+export type SessionType = 'ASIA' | 'EUROPE' | 'US' | 'OVERLAP';
+
 export interface Trade {
   id: string;
   date: Date;
   pair: string;
-  type: 'BUY' | 'SELL';
+  type: TradeSide;
   entry: number;
   exit: number;
   stopLoss: number;
@@ -13,28 +20,23 @@ export interface Trade {
   riskRewardRatio: number;
   pnl: number;
   pnlPercent: number;
-  status: 'OPEN' | 'CLOSED' | 'PENDING';
-  tradeType: 'SCALP' | 'DAY' | 'SWING' | 'POSITION';
+  status: TradeStatus;
+  tradeType: TradeType;
   strategy: string;
-  session: 'ASIA' | 'EUROPE' | 'US' | 'OVERLAP';
+  session: SessionType;
   emotionBefore: number; // 1-10 scale
-  emotionAfter: number; // 1-10 scale
+  emotionAfter: number;  // 1-10 scale
   notes: string;
   tags: string[];
 }
 
-export interface MetricData {
-  label: string;
-  value: string | number;
-  change?: number;
-  icon?: string;
-  color?: 'primary' | 'success' | 'warning' | 'danger' | 'info';
-}
-
+// --------------------
+// Dashboard / Metrics
+// --------------------
 export interface ChartDataPoint {
   name: string;
   value: number;
-  [key: string]: any;
+  [key: string]: string | number;
 }
 
 export interface DashboardMetrics {
@@ -60,26 +62,38 @@ export interface AnalyticsData {
   equityCurve: ChartDataPoint[];
   strategyPerformance: Record<string, number>;
   pairPerformance: Record<string, number>;
-  sessionPerformance: Record<string, number>;
+  sessionPerformance: Record<SessionType, number>;
 }
+
+// --------------------
+// Trading Rules
+// --------------------
+export type RuleCategory = 'PERSONAL' | 'RISK' | 'STRATEGY' | 'PSYCHOLOGY';
 
 export interface TradingRule {
   id: string;
-  category: 'PERSONAL' | 'RISK' | 'STRATEGY' | 'PSYCHOLOGY';
+  category: RuleCategory;
   title: string;
   description: string;
   isActive: boolean;
   breaks: number;
 }
 
+// --------------------
+// Goals
+// --------------------
+export type GoalType = 'PROFIT' | 'TRADES' | 'WIN_RATE' | 'RISK_LIMIT';
+export type GoalPeriod = 'DAILY' | 'WEEKLY' | 'MONTHLY';
+export type GoalStatus = 'ACTIVE' | 'COMPLETED' | 'FAILED';
+
 export interface Goal {
   id: string;
   name: string;
   targetValue: number;
   currentValue: number;
-  type: 'PROFIT' | 'TRADES' | 'WIN_RATE' | 'RISK_LIMIT';
-  period: 'DAILY' | 'WEEKLY' | 'MONTHLY';
+  type: GoalType;
+  period: GoalPeriod;
   dateStart: Date;
   dateEnd: Date;
-  status: 'ACTIVE' | 'COMPLETED' | 'FAILED';
+  status: GoalStatus;
 }

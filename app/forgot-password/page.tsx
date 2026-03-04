@@ -54,8 +54,13 @@ export default function ForgotPasswordPage() {
       } else {
         setError(result.error || 'Failed to send reset link. Please try again.');
       }
-    } catch (err: any) {
-      setError('An unexpected error occurred. Please try again.');
+    } 
+       catch (err: unknown) {
+      if (err instanceof Error) {
+        setError(err.message);
+      } else {
+        setError("An unexpected error occurred. Please try again.");
+      }
     } finally {
       setIsLoading(false);
     }

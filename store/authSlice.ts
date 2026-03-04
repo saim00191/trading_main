@@ -13,6 +13,7 @@ export interface User {
 
 interface AuthState {
   user: User | null;
+  userEmail: string | null; // ✅ NEW STATE ADDED
   isLoading: boolean;
   error: string | null;
   isAuthenticated: boolean;
@@ -27,6 +28,7 @@ interface AuthState {
 
 const initialState: AuthState = {
   user: null,
+  userEmail: null, // ✅ INITIALIZED
   isLoading: false,
   error: null,
   isAuthenticated: false,
@@ -40,45 +42,63 @@ const authSlice = createSlice({
     setLoading: (state, action: PayloadAction<boolean>) => {
       state.isLoading = action.payload;
     },
+
     setError: (state, action: PayloadAction<string | null>) => {
       state.error = action.payload;
     },
+
     setUser: (state, action: PayloadAction<User>) => {
       state.user = action.payload;
+      state.userEmail = action.payload.email; // ✅ SAVE EMAIL
       state.isAuthenticated = true;
       state.error = null;
+
       // Persist to localStorage
       if (typeof window !== 'undefined') {
         localStorage.setItem('user', JSON.stringify(action.payload));
       }
     },
+
     logout: (state) => {
       state.user = null;
+      state.userEmail = null; // ✅ CLEAR EMAIL
       state.isAuthenticated = false;
       state.error = null;
       state.tempSignupData = undefined;
-      // Clear localStorage
+
       if (typeof window !== 'undefined') {
         localStorage.removeItem('user');
         localStorage.removeItem('tempSignupData');
       }
     },
-    setTempSignupData: (state, action: PayloadAction<AuthState['tempSignupData']>) => {
+
+    setTempSignupData: (
+      state,
+      action: PayloadAction<AuthState['tempSignupData']>
+    ) => {
       state.tempSignupData = action.payload;
+
       if (typeof window !== 'undefined' && action.payload) {
-        localStorage.setItem('tempSignupData', JSON.stringify(action.payload));
+        localStorage.setItem(
+          'tempSignupData',
+          JSON.stringify(action.payload)
+        );
       }
     },
+
     initializeAuth: (state) => {
-      // Load user from localStorage on app start
       if (typeof window !== 'undefined') {
         const storedUser = localStorage.getItem('user');
+
         if (storedUser) {
           try {
-            state.user = JSON.parse(storedUser);
+            const parsedUser: User = JSON.parse(storedUser);
+            state.user = parsedUser;
+            state.userEmail = parsedUser.email; // ✅ RESTORE EMAIL
             state.isAuthenticated = true;
           } catch (e) {
             state.user = null;
+            state.userEmail = null;
             state.isAuthenticated = false;
           }
         }

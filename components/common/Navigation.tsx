@@ -1,27 +1,151 @@
-'use client';
+"use client";
 
-import React, { useState } from 'react';
-import Link from 'next/link';
-import { usePathname } from 'next/navigation';
-import { Menu, X, BarChart3, TrendingUp, Brain, Shield, BookOpen, Calendar, Target, Settings } from 'lucide-react';
+import React, { useState, useEffect } from "react";
+import Link from "next/link";
+import { usePathname, useRouter } from "next/navigation";
+import { useSelector, useDispatch } from "react-redux";
+import { motion, AnimatePresence } from "framer-motion";
+import {
+  Menu,
+  X,
+  BarChart3,
+  TrendingUp,
+  Brain,
+  Shield,
+  BookOpen,
+  Calendar,
+  Target,
+  Settings,
+  LogOut,
+} from "lucide-react";
+import { logout } from "@/store/authSlice";
+import { supabase } from "@/lib/supabaseClient";
+import {
+  selectUserEmail,
+  clearEmail,
+  loadEmailFromStorage,
+} from "@/store/UserLoggedInSlice";
 
 const navItems = [
-  { label: 'Dashboard', href: '/dashboard', icon: BarChart3 },
-  { label: 'Trade Journal', href: '/trades', icon: BookOpen },
-  { label: 'Analytics', href: '/analytics', icon: TrendingUp },
-  { label: 'AI Coach', href: '/ai-coach', icon: Brain },
-  { label: 'Risk Management', href: '/risk-management', icon: Shield },
-  { label: 'Trading Plan', href: '/trading-plan', icon: BookOpen },
-  { label: 'Calendar', href: '/calendar', icon: Calendar },
-  { label: 'Goals', href: '/goals', icon: Target },
+  { label: "Dashboard", href: "/dashboard", icon: BarChart3 },
+  { label: "Trade Journal", href: "/trades", icon: BookOpen },
+  { label: "Analytics", href: "/analytics", icon: TrendingUp },
+  { label: "AI Coach", href: "/ai-coach", icon: Brain },
+  { label: "Risk Management", href: "/risk-management", icon: Shield },
+  { label: "Trading Plan", href: "/trading-plan", icon: BookOpen },
+  { label: "Calendar", href: "/calendar", icon: Calendar },
+  { label: "Goals", href: "/goals", icon: Target },
 ];
+
+type User = {
+  id: string;
+  firebase_uid: string;
+  username: string;
+  email: string;
+  phone: string;
+  created_at: string;
+  time_period_start: string;
+  time_period_end: string;
+  user_type: string;
+  last_updated_at: string;
+};
+
 
 export function Navigation() {
   const [isOpen, setIsOpen] = useState(false);
+  const [isSettingsOpen, setIsSettingsOpen] = useState(false);
   const pathname = usePathname();
+  const router = useRouter();
+  const dispatch = useDispatch();
 
+  const userEmail = useSelector(selectUserEmail);
+  console.log("User Email:", userEmail); // ✅ Redux only has email
+  const [userData, setUserData] = useState<User>(null); // Supabase user data
+  const [countdown, setCountdown] = useState("");
   const isActive = (href: string) => pathname === href;
 
+  useEffect(() => {
+    dispatch(loadEmailFromStorage());
+  }, [dispatch]);
+
+  useEffect(() => {
+    if (!userEmail) return;
+
+    const fetchUserData = async () => {
+      const { data, error } = await supabase
+        .from("users") // ✅ your Supabase table name
+        .select("*")
+        .eq("email", userEmail)
+        .single();
+
+      console.log("Supabase fetch for email:", userEmail, "->", {
+        data,
+        error,
+      }); // ✅ log result
+      if (error) {
+        console.error("Supabase fetch error:", error);
+        return;
+      }
+
+      setUserData(data);
+    };
+
+    fetchUserData();
+  }, [userEmail]);
+
+  // Countdown timer effect
+  useEffect(() => {
+    if (!userData?.timePeriodEnd) return;
+
+    const interval = setInterval(() => {
+      const now = new Date().getTime();
+      const end = new Date(userData.timePeriodEnd).getTime();
+      const diff = end - now;
+
+      if (diff <= 0) {
+        setCountdown("Expired");
+        clearInterval(interval);
+        return;
+      }
+
+      const days = Math.floor(diff / (1000 * 60 * 60 * 24));
+      const hours = Math.floor(
+        (diff % (1000 * 60 * 60 * 24)) / (1000 * 60 * 60),
+      );
+      const minutes = Math.floor((diff % (1000 * 60 * 60)) / (1000 * 60));
+      const seconds = Math.floor((diff % (1000 * 60)) / 1000);
+
+      setCountdown(`${days}d ${hours}h ${minutes}m ${seconds}s`);
+    }, 1000);
+
+    return () => clearInterval(interval);
+  }, [userData?.timePeriodEnd]);
+
+  // Format date helper
+  const formatDate = (date: string | Date | null) => {
+    if (!date) return "N/A";
+    return new Date(date).toLocaleDateString("en-US", {
+      year: "numeric",
+      month: "short",
+      day: "numeric",
+    });
+  };
+
+  // Handle logout
+  const handleLogout = () => {
+    // 1️⃣ Clear email from your Redux slice
+    dispatch(clearEmail()); // <-- action from your userEmailSlice
+    dispatch(logout());
+
+    // 2️⃣ Optionally remove from localStorage if you saved it there
+    localStorage.removeItem("userEmail");
+
+    // 3️⃣ Close settings modal
+    setIsSettingsOpen(false);
+
+    // 4️⃣ Redirect to login
+    router.push("/login");
+  };
   return (
     <>
       {/* Mobile menu button */}
@@ -37,7 +161,7 @@ export function Navigation() {
         className={`
           fixed left-0 top-0 z-40 h-screen w-64 bg-sidebar transition-transform duration-300
           transform md:translate-x-0
-          ${isOpen ? 'translate-x-0' : '-translate-x-full'}
+          ${isOpen ? "translate-x-0" : "-translate-x-full"}
           border-r border-sidebar-border overflow-y-auto
         `}
       >
@@ -65,8 +189,8 @@ export function Navigation() {
                     flex items-center gap-3 rounded-lg px-4 py-3 transition-all duration-300
                     ${
                       active
-                        ? 'bg-sidebar-primary text-sidebar-primary-foreground shadow-lg shadow-primary/20'
-                        : 'text-sidebar-foreground hover:bg-sidebar-accent/10'
+                        ? "bg-sidebar-primary text-sidebar-primary-foreground shadow-lg shadow-primary/20"
+                        : "text-sidebar-foreground hover:bg-sidebar-accent/10"
                     }
                   `}
                 >
@@ -80,7 +204,10 @@ export function Navigation() {
 
         {/* Footer */}
         <div className="absolute bottom-0 left-0 right-0 border-t border-sidebar-border bg-sidebar p-4">
-          <button className="flex w-full items-center gap-3 rounded-lg px-4 py-3 text-sidebar-foreground transition-all duration-300 hover:bg-sidebar-accent/10">
+          <button
+            onClick={() => setIsSettingsOpen(true)}
+            className="flex w-full items-center gap-3 rounded-lg px-4 py-3 text-sidebar-foreground transition-all duration-300 hover:bg-sidebar-accent/10"
+          >
             <Settings size={20} />
             <span className="font-medium">Settings</span>
           </button>
@@ -88,7 +215,154 @@ export function Navigation() {
       </aside>
 
       {/* Mobile overlay */}
-      {isOpen && <div className="fixed inset-0 z-30 bg-black/50 md:hidden" onClick={() => setIsOpen(false)} />}
+      {isOpen && (
+        <div
+          className="fixed inset-0 z-30 bg-black/50 md:hidden"
+          onClick={() => setIsOpen(false)}
+        />
+      )}
+
+      {/* Settings Modal */}
+      <AnimatePresence>
+        {isSettingsOpen && (
+          <>
+            {/* Backdrop */}
+            <motion.div
+              className="fixed inset-0 z-50 bg-black/50"
+              initial={{ opacity: 0 }}
+              animate={{ opacity: 1 }}
+              exit={{ opacity: 0 }}
+              onClick={() => setIsSettingsOpen(false)}
+              transition={{ duration: 0.2 }}
+            />
+
+            {/* Modal Card */}
+            <motion.div
+              className="fixed inset-0 z-50 flex items-center justify-center p-4"
+              initial={{ opacity: 0 }}
+              animate={{ opacity: 1 }}
+              exit={{ opacity: 0 }}
+              transition={{ duration: 0.2 }}
+              onClick={() => setIsSettingsOpen(false)}
+            >
+              <motion.div
+                className="bg-[#0f0f1e] border border-gray-700/50 rounded-xl p-6 w-full max-w-[90%] md:max-w-[400px] shadow-2xl"
+                initial={{ scale: 0.95, opacity: 0 }}
+                animate={{ scale: 1, opacity: 1 }}
+                exit={{ scale: 0.95, opacity: 0 }}
+                transition={{ duration: 0.3, ease: "easeOut" }}
+                onClick={(e) => e.stopPropagation()}
+              >
+                {/* Header */}
+                <div className="flex items-center justify-between mb-6">
+                  <h2 className="text-2xl font-bold text-white">
+                    User Settings
+                  </h2>
+                  <motion.button
+                    onClick={() => setIsSettingsOpen(false)}
+                    className="text-gray-400 hover:text-white transition-colors p-1"
+                    whileHover={{ scale: 1.1 }}
+                    whileTap={{ scale: 0.95 }}
+                  >
+                    <X size={24} />
+                  </motion.button>
+                </div>
+
+                {/* User Information */}
+                <div className="space-y-4 mb-6">
+                  {/* Username */}
+                  <div className="flex flex-col md:flex-row md:items-center md:justify-between gap-2">
+                    <span className="text-sm text-gray-400 font-medium">
+                      Username
+                    </span>
+                    <span className="text-white font-semibold">
+                      {userData?.username || "N/A"}
+                    </span>
+                  </div>
+
+                  {/* Email */}
+                  <div className="flex flex-col md:flex-row md:items-center md:justify-between gap-2">
+                    <span className="text-sm text-gray-400 font-medium">
+                      Email
+                    </span>
+                    <span className="text-white font-semibold break-all">
+                      {userData?.email || "N/A"}
+                    </span>
+                  </div>
+                  {/* Phone */}
+                  <div className="flex flex-col md:flex-row md:items-center md:justify-between gap-2">
+                    <span className="text-sm text-gray-400 font-medium">
+                      Phone
+                    </span>
+                    <span className="text-white font-semibold break-all">
+                      {userData?.phone || "N/A"}
+                    </span>
+                  </div>
+
+                  {/* User Type */}
+                  <div className="flex flex-col md:flex-row md:items-center md:justify-between gap-2">
+                    <span className="text-sm text-gray-400 font-medium">
+                      User Type
+                    </span>
+                    <span className="text-white font-semibold capitalize">
+                      {userData?.user_type || "N/A"}
+                    </span>
+                  </div>
+
+                  {/* Time Period Start */}
+                  <div className="flex flex-col md:flex-row md:items-center md:justify-between gap-2">
+                    <span className="text-sm text-gray-400 font-medium">
+                      Period Start
+                    </span>
+                    <span className="text-white font-semibold">
+                      {formatDate(userData?.time_period_start)}
+                    </span>
+                  </div>
+
+                  {/* Time Period End */}
+                  <div className="flex flex-col md:flex-row md:items-center md:justify-between gap-2">
+                    <span className="text-sm text-gray-400 font-medium">
+                      Period End
+                    </span>
+                    <div className="flex items-center gap-2">
+                      <span className="text-white font-semibold">
+                        {userData?.time_period_end
+                          ? formatDate(userData?.time_period_end)
+                          : "N/A"}
+                      </span>
+                      {countdown && (
+                        <span
+                          className={`text-xs font-semibold px-2 py-1 rounded ${
+                            countdown === "Expired"
+                              ? "bg-red-500/20 text-red-400"
+                              : "bg-blue-500/20 text-blue-400"
+                          }`}
+                        >
+                          {countdown}
+                        </span>
+                      )}
+                    </div>
+                  </div>
+                </div>
+
+                {/* Logout Button */}
+                <motion.button
+                  onClick={handleLogout}
+                  className="w-full bg-gradient-to-r from-blue-500 to-blue-600 hover:from-blue-600 hover:to-blue-700 text-white font-semibold py-3 px-4 rounded-lg transition-all duration-300 flex items-center justify-center gap-2 shadow-lg hover:shadow-blue-500/50"
+                  whileHover={{
+                    scale: 1.02,
+                    boxShadow: "0 0 20px rgba(37, 99, 235, 0.5)",
+                  }}
+                  whileTap={{ scale: 0.98 }}
+                >
+                  <LogOut size={18} />
+                  Logout
+                </motion.button>
+              </motion.div>
+            </motion.div>
+          </>
+        )}
+      </AnimatePresence>
     </>
   );
 }

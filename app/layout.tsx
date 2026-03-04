@@ -1,8 +1,9 @@
-import type { Metadata } from 'next'
-import { Poppins } from 'next/font/google'
-import { Analytics } from '@vercel/analytics/next'
-import './globals.css'
+import type { Metadata } from 'next';
+import { Poppins } from 'next/font/google';
+import { Analytics } from '@vercel/analytics/next';
+import './globals.css';
 import { ReduxProvider } from '@/components/ReduxProvider';
+import { InitializeAuth } from '@/components/InitializeAuth'; 
 
 const poppins = Poppins({ 
   subsets: ["latin"],
@@ -31,21 +32,25 @@ export const metadata: Metadata = {
     ],
     apple: '/apple-icon.png',
   },
-}
+};
 
 export default function RootLayout({
   children,
 }: Readonly<{
-  children: React.ReactNode
+  children: React.ReactNode;
 }>) {
   return (
     <html lang="en" className="dark" suppressHydrationWarning>
       <body className={`${poppins.variable} font-sans antialiased bg-[#020A15] text-white`}>
-      <ReduxProvider>
+        {/* ReduxProvider wraps the entire app */}
+        <ReduxProvider>
+          {/* Initialize Redux auth state from localStorage */}
+          <InitializeAuth />
           {children}
         </ReduxProvider>
+
         <Analytics />
       </body>
     </html>
-  )
+  );
 }

@@ -10,15 +10,25 @@ import { mockTradingRules } from '@/lib/mock-data';
 import { TradingRule } from '@/lib/types';
 import { toast } from 'sonner';
 
+type RuleCategory = 'PERSONAL' | 'RISK' | 'STRATEGY' | 'PSYCHOLOGY';
+
+interface RuleFormData {
+  category: RuleCategory;
+  title: string;
+  description: string;
+}
+
 export default function TradingPlanPage() {
   const [rules, setRules] = useState<TradingRule[]>(mockTradingRules);
   const [isModalOpen, setIsModalOpen] = useState(false);
-  const [editingRule, setEditingRule] = useState<TradingRule | null>(null);
-  const [formData, setFormData] = useState({
+  const [formData, setFormData] = useState<RuleFormData>({
     category: 'PERSONAL',
     title: '',
     description: '',
   });
+
+  const [editingRule, setEditingRule] = useState<TradingRule | null>(null);
+
 
   const categories = ['PERSONAL', 'RISK', 'STRATEGY', 'PSYCHOLOGY'];
 
@@ -39,7 +49,7 @@ export default function TradingPlanPage() {
           r.id === editingRule.id
             ? {
                 ...r,
-                category: formData.category as any,
+                category: formData.category,
                 title: formData.title,
                 description: formData.description,
               }
@@ -51,7 +61,7 @@ export default function TradingPlanPage() {
       // Add new rule
       const newRule: TradingRule = {
         id: `rule-${Date.now()}`,
-        category: formData.category as any,
+        category: formData.category ,
         title: formData.title,
         description: formData.description,
         isActive: true,
@@ -233,7 +243,7 @@ export default function TradingPlanPage() {
             <label className="block text-sm font-medium text-foreground mb-2">Category *</label>
             <select
               value={formData.category}
-              onChange={(e) => setFormData({ ...formData, category: e.target.value })}
+              onChange={(e) => setFormData({ ...formData, category: e.target.value as RuleCategory })}
               className="w-full rounded-lg border border-border/50 bg-input px-4 py-2 text-foreground focus:border-primary focus:outline-none focus:ring-2 focus:ring-primary/20 transition-all"
             >
               <option value="PERSONAL">Personal</option>
