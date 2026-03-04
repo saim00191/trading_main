@@ -60,7 +60,7 @@ export function Navigation() {
 
   const userEmail = useSelector(selectUserEmail);
   console.log("User Email:", userEmail); // ✅ Redux only has email
-  const [userData, setUserData] = useState<User>(null); // Supabase user data
+  const [userData, setUserData] = useState<User | null>(null); // Supabase user data
   const [countdown, setCountdown] = useState("");
   const isActive = (href: string) => pathname === href;
 
@@ -95,34 +95,32 @@ export function Navigation() {
 
   // Countdown timer effect
   useEffect(() => {
-    if (!userData?.timePeriodEnd) return;
+  if (!userData?.time_period_end) return;
 
-    const interval = setInterval(() => {
-      const now = new Date().getTime();
-      const end = new Date(userData.timePeriodEnd).getTime();
-      const diff = end - now;
+  const interval = setInterval(() => {
+    const now = new Date().getTime();
+    const end = new Date(userData.time_period_end).getTime();
+    const diff = end - now;
 
-      if (diff <= 0) {
-        setCountdown("Expired");
-        clearInterval(interval);
-        return;
-      }
+    if (diff <= 0) {
+      setCountdown("Expired");
+      clearInterval(interval);
+      return;
+    }
 
-      const days = Math.floor(diff / (1000 * 60 * 60 * 24));
-      const hours = Math.floor(
-        (diff % (1000 * 60 * 60 * 24)) / (1000 * 60 * 60),
-      );
-      const minutes = Math.floor((diff % (1000 * 60 * 60)) / (1000 * 60));
-      const seconds = Math.floor((diff % (1000 * 60)) / 1000);
+    const days = Math.floor(diff / (1000 * 60 * 60 * 24));
+    const hours = Math.floor((diff % (1000 * 60 * 60 * 24)) / (1000 * 60 * 60));
+    const minutes = Math.floor((diff % (1000 * 60 * 60)) / (1000 * 60));
+    const seconds = Math.floor((diff % (1000 * 60)) / 1000);
 
-      setCountdown(`${days}d ${hours}h ${minutes}m ${seconds}s`);
-    }, 1000);
+    setCountdown(`${days}d ${hours}h ${minutes}m ${seconds}s`);
+  }, 1000);
 
-    return () => clearInterval(interval);
-  }, [userData?.timePeriodEnd]);
+  return () => clearInterval(interval);
+}, [userData?.time_period_end]);
 
   // Format date helper
-  const formatDate = (date: string | Date | null) => {
+  const formatDate = (date?: string | Date | null) => {
     if (!date) return "N/A";
     return new Date(date).toLocaleDateString("en-US", {
       year: "numeric",
