@@ -1,283 +1,361 @@
 'use client';
 
 import React, { useState } from 'react';
-import { AnimatedButton } from '@/components/common/AnimatedButton';
+import { useSelector } from 'react-redux';
+import { motion } from 'framer-motion';
+import { RootState } from '@/store/store';
 import { Trade } from '@/lib/types';
+import { TagSelector } from './TagSelector';
+import { toast } from 'sonner';
+import { selectUserEmail } from '@/store/UserLoggedInSlice';
+import { supabase } from '@/lib/supabaseClient';
 
 interface TradeFormProps {
-  onSubmit: (trade: Partial<Trade>) => void;
-  initialValues?: Partial<Trade>;
+  onSubmit: (trade: Trade) => Promise<void>;
 }
 
-export function TradeForm({ onSubmit, initialValues }: TradeFormProps) {
-  const [formData, setFormData] = useState<Partial<Trade>>(
-    initialValues || {
-      pair: 'EUR/USD',
-      type: 'BUY',
-      tradeType: 'DAY',
-      strategy: 'MA Crossover',
-      session: 'EUROPE',
-      emotionBefore: 5,
-      emotionAfter: 5,
-    }
-  );
+export function TradeForm({ onSubmit }: TradeFormProps) {
+ 
+   const userEmail = useSelector(selectUserEmail);
+  const [formData, setFormData] = useState<Partial<Trade>>({
+    pair: 'EUR/USD',
+    side: 'BUY',
+    trade_type: 'DAY',
+    market: 'FOREX',
+    exchange: '',
+    status: 'CLOSED',
+    session: 'EUROPE',
+    strategy: '',
+    entry: 0,
+    stop_loss: 0,
+    take_profit: 0,
+    exit_price: 0,
+    position_size: 0,
+    risk_percent: 0,
+    emotion_before: 5,
+    emotion_after: 5,
+    notes: '',
+    tags: [],
+  });
+
+  const [errors, setErrors] = useState<Record<string, string>>({});
   const [loading, setLoading] = useState(false);
 
-  const handleChange = (e: React.ChangeEvent<HTMLInputElement | HTMLSelectElement | HTMLTextAreaElement>) => {
-    const { name, value, type } = e.target;
-    const finalValue = type === 'number' ? parseFloat(value) : value;
+    const calculatePnL = (): { pnl: number; pnl_percent: number } => {
+    const { entry = 0, exit_price = 0, position_size = 0, side } = formData;
 
-    setFormData((prev) => ({
-      ...prev,
-      [name]: finalValue,
-    }));
+    if (!entry || !exit_price || !position_size) return { pnl: 0, pnl_percent: 0 };
+
+    const priceChange = exit_price - entry;
+    const direction = side === 'BUY' ? 1 : -1;
+    const pnl = priceChange * direction * position_size;
+    const pnl_percent = (priceChange / entry) * 100 * direction;
+
+    return { pnl: parseFloat(pnl.toFixed(2)), pnl_percent: parseFloat(pnl_percent.toFixed(2)) };
   };
 
-  const handleSubmit = (e: React.FormEvent) => {
+
+  const validateForm = (): boolean => {
+    const newErrors: Record<string, string> = {};
+
+    if (!formData.pair?.trim()) newErrors.pair = 'Pair is required';
+    if (!formData.exchange?.trim()) newErrors.exchange = 'Exchange is required';
+    if (!formData.strategy?.trim()) newErrors.strategy = 'Strategy is required';
+    if (!formData.opened_at) newErrors.opened_at = 'Open time is required';
+    if (!formData.closed_at) newErrors.closed_at = 'Close time is required';
+    if (!formData.entry || formData.entry <= 0) newErrors.entry = 'Entry must be > 0';
+    if (!formData.exit_price || formData.exit_price <= 0) newErrors.exit_price = 'Exit must be > 0';
+    if (!formData.stop_loss || formData.stop_loss <= 0) newErrors.stop_loss = 'SL must be > 0';
+    if (!formData.take_profit || formData.take_profit <= 0) newErrors.take_profit = 'TP must be > 0';
+    if (!formData.position_size || formData.position_size <= 0) newErrors.position_size = 'Size must be > 0';
+    if (!formData.risk_percent || formData.risk_percent <= 0) newErrors.risk_percent = 'Risk must be > 0';
+
+    setErrors(newErrors);
+    return Object.keys(newErrors).length === 0;
+  };
+
+const handleChange = <K extends keyof Trade>(
+  e: React.ChangeEvent<HTMLInputElement | HTMLSelectElement | HTMLTextAreaElement>
+) => {
+  const { name, value, type } = e.target;
+
+  // Type assertion ensures TS knows 'name' is a Trade key
+  const key = name as K;
+
+  const finalValue: Trade[K] =
+    type === 'number'
+      ? (parseFloat(value) || 0) as Trade[K]
+      : (value as unknown as Trade[K]);
+
+  setFormData((prev) => ({
+    ...prev,
+    [key]: finalValue,
+  }));
+
+  if (errors[key as string]) {
+    setErrors((prev) => ({ ...prev, [key as string]: '' }));
+  }
+};
+
+const handleSubmit = async (e: React.FormEvent<HTMLFormElement>) => {
+  try {
     e.preventDefault();
+    e.stopPropagation();
+
+    if (loading) return;
+
+    const isValid = validateForm();
+
+    if (!isValid) {
+      toast.error('Please fix the form errors');
+      console.error("Validation Errors:", errors);
+      return;
+    }
+
+    if (!userEmail) {
+      toast.error("User not authenticated");
+      console.error("Missing user email");
+      return;
+    }
+
     setLoading(true);
 
-    // Simulate API call
-    setTimeout(() => {
-      onSubmit(formData);
-      setLoading(false);
-      setFormData({
-        pair: 'EUR/USD',
-        type: 'BUY',
-        tradeType: 'DAY',
-        strategy: 'MA Crossover',
-        session: 'EUROPE',
-        emotionBefore: 5,
-        emotionAfter: 5,
-      });
-    }, 500);
-  };
+    /* FETCH USERNAME FROM SUPABASE */
+    const { data: userData, error: userError } = await supabase
+      .from("users")
+      .select("username")
+      .eq("email", userEmail)
+      .single();
 
+    if (userError) {
+      console.error("Username fetch error:", userError);
+    }
+
+    const username = userData?.username || "Unknown";
+
+    const { pnl, pnl_percent } = calculatePnL();
+
+    const riskReward =
+      formData.take_profit &&
+      formData.stop_loss &&
+      formData.entry
+        ? parseFloat(
+            (
+              (formData.take_profit - formData.entry) /
+              (formData.entry - formData.stop_loss)
+            ).toFixed(2)
+          )
+        : 0;
+
+    const tradeData: Trade = {
+      ...(formData as Trade),
+      useremail: userEmail,
+      username:username,
+      pnl,
+      pnl_percent,
+      risk_reward: riskReward,
+    };
+
+    console.log("Submitting trade:", tradeData);
+
+    await onSubmit(tradeData);
+
+    toast.success("Trade saved successfully ✅");
+
+    // reset form
+    setFormData({
+      pair: "EUR/USD",
+      side: "BUY",
+      trade_type: "DAY",
+      market: "FOREX",
+      exchange: "",
+      status: "CLOSED",
+      session: "EUROPE",
+      strategy: "",
+      entry: 0,
+      stop_loss: 0,
+      take_profit: 0,
+      exit_price: 0,
+      position_size: 0,
+      risk_percent: 0,
+      emotion_before: 5,
+      emotion_after: 5,
+      notes: "",
+      tags: [],
+    });
+
+    setErrors({});
+  } catch (error: unknown) {
+  // Narrow the type safely
+  if (error instanceof Error) {
+    console.error("Trade submission error:", error);
+    toast.error(error.message || "Something went wrong while saving trade");
+  } else {
+    console.error("Trade submission error (unknown):", error);
+    toast.error("Something went wrong while saving trade");
+  }
+}
+  } finally {
+    setLoading(false);
+  }
+};
+
+const renderInput = <K extends keyof Trade>(
+  name: K,
+  label: string,
+  type: 'text' | 'number' | 'datetime-local' = 'text'
+) => {
+  const hasError = !!errors[name as string];
   return (
-    <form onSubmit={handleSubmit} className="space-y-6">
-      {/* Row 1: Pair, Type, Trade Type */}
-      <div className="grid grid-cols-1 gap-4 md:grid-cols-3">
+    <div key={name as string}>
+      <label className="block text-xs md:text-sm font-semibold text-foreground mb-1">{label}</label>
+      <input
+        type={type}
+        name={name as string}
+        value={(formData[name] as string | number | undefined) ?? ''}
+        onChange={handleChange}
+        disabled={loading}
+        className={`w-full px-2 md:px-3 py-2 bg-input border rounded text-foreground text-sm focus:outline-none focus:ring-1 transition-all ${
+          hasError ? 'border-danger/50 focus:ring-danger/30' : 'border-border focus:ring-primary/30'
+        }`}
+      />
+      {hasError && <p className="text-xs text-danger mt-0.5">{errors[name as string]}</p>}
+    </div>
+  );
+};
+
+const renderSelect = <K extends keyof Trade>(name: K, label: string, options: string[]) => {
+  const hasError = !!errors[name as string];
+  return (
+    <div key={name as string}>
+      <label className="block text-xs md:text-sm font-semibold text-foreground mb-1">{label}</label>
+      <select
+        name={name as string}
+        value={(formData[name] as string | number | undefined) ?? ''}
+        onChange={handleChange}
+        disabled={loading}
+        className={`w-full px-2 md:px-3 py-2 bg-input border rounded text-foreground text-sm focus:outline-none focus:ring-1 transition-all ${
+          hasError ? 'border-danger/50 focus:ring-danger/30' : 'border-border focus:ring-primary/30'
+        }`}
+      >
+        <option value="">Select</option>
+        {options.map((opt) => (
+          <option key={opt} value={opt}>
+            {opt}
+          </option>
+        ))}
+      </select>
+      {hasError && <p className="text-xs text-danger mt-0.5">{errors[name as string]}</p>}
+    </div>
+  );
+};
+  return (
+    <form onSubmit={handleSubmit} className="space-y-4 md:space-y-6 p-3 md:p-6 bg-card border border-border/50 rounded-lg">
+      {/* Trade Details */}
+      <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} className="space-y-3">
+        <h3 className="text-base md:text-lg font-bold text-foreground">Trade Info</h3>
+        <div className="grid grid-cols-2 md:grid-cols-3 gap-2 md:gap-3">
+          {renderSelect('pair', 'Pair', ['EUR/USD', 'GBP/USD', 'USD/JPY', 'AUD/USD', 'BTC/USD', 'ETH/USD', 'AAPL', 'GOLD', 'OIL'])}
+          {renderSelect('side', 'Side', ['BUY', 'SELL'])}
+          {renderSelect('status', 'Status', ['OPEN', 'CLOSED'])}
+          {renderSelect('trade_type', 'Type', ['SCALP', 'DAY', 'SWING'])}
+          {renderSelect('market', 'Market', ['FOREX', 'CRYPTO', 'STOCKS', 'FUTURES'])}
+          {renderSelect('session', 'Session', ['ASIA', 'EUROPE', 'NEWYORK'])}
+        </div>
+      </motion.div>
+
+      {/* Entry & Exit */}
+      <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} className="space-y-3">
+        <h3 className="text-base md:text-lg font-bold text-foreground">Entry & Exit</h3>
+        <div className="grid grid-cols-2 gap-2 md:gap-3">
+          {renderInput('opened_at', 'Open Time', 'datetime-local')}
+          {renderInput('closed_at', 'Close Time', 'datetime-local')}
+        </div>
+        <div className="grid grid-cols-2 md:grid-cols-4 gap-2 md:gap-3">
+          {renderInput('entry', 'Entry', 'number')}
+          {renderInput('exit_price', 'Exit', 'number')}
+          {renderInput('stop_loss', 'SL', 'number')}
+          {renderInput('take_profit', 'TP', 'number')}
+        </div>
+      </motion.div>
+
+      {/* Risk */}
+      <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} className="space-y-3">
+        <h3 className="text-base md:text-lg font-bold text-foreground">Risk</h3>
+        <div className="grid grid-cols-2 gap-2 md:gap-3">
+          {renderInput('position_size', 'Size', 'number')}
+          {renderInput('risk_percent', 'Risk %', 'number')}
+        </div>
+        <div className="p-2 md:p-3 bg-primary/10 border border-primary/20 rounded text-xs md:text-sm">
+          R:R = {((formData.take_profit && formData.stop_loss && formData.entry) 
+            ? ((formData.take_profit - formData.entry) / (formData.entry - formData.stop_loss)).toFixed(2)
+            : '0.00')}
+        </div>
+      </motion.div>
+
+      {/* Additional */}
+      <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} className="space-y-3">
+        <h3 className="text-base md:text-lg font-bold text-foreground">Additional</h3>
+        <div className="grid grid-cols-1 md:grid-cols-2 gap-2 md:gap-3">
+          {renderInput('exchange', 'Exchange')}
+          {renderInput('strategy', 'Strategy')}
+        </div>
+        
         <div>
-          <label className="block text-sm font-medium text-foreground mb-2">Currency Pair *</label>
-          <select
-            name="pair"
-            value={formData.pair || ''}
+          <label className="block text-xs md:text-sm font-semibold text-foreground mb-1">Notes ({formData.notes?.length || 0}/250)</label>
+          <textarea
+            name="notes"
+            value={formData.notes || ''}
             onChange={handleChange}
-            required
-            className="w-full rounded-lg border border-border/50 bg-input px-4 py-2 text-foreground focus:border-primary focus:outline-none focus:ring-2 focus:ring-primary/20 transition-all"
-          >
-            <option>EUR/USD</option>
-            <option>GBP/USD</option>
-            <option>USD/JPY</option>
-            <option>AUD/USD</option>
-            <option>USD/CAD</option>
-          </select>
+            disabled={loading}
+            maxLength={250}
+            rows={2}
+            className={`w-full px-2 md:px-3 py-2 bg-input border rounded text-foreground text-sm focus:outline-none focus:ring-1 transition-all resize-none ${
+              errors.notes ? 'border-danger/50 focus:ring-danger/30' : 'border-border focus:ring-primary/30'
+            }`}
+            placeholder="Trade notes..."
+          />
         </div>
 
-        <div>
-          <label className="block text-sm font-medium text-foreground mb-2">Type *</label>
-          <select
-            name="type"
-            value={formData.type || ''}
-            onChange={handleChange}
-            required
-            className="w-full rounded-lg border border-border/50 bg-input px-4 py-2 text-foreground focus:border-primary focus:outline-none focus:ring-2 focus:ring-primary/20 transition-all"
-          >
-            <option value="BUY">BUY</option>
-            <option value="SELL">SELL</option>
-          </select>
-        </div>
+        <TagSelector tags={formData.tags || []} onChange={(tags) => setFormData((prev) => ({ ...prev, tags }))} maxTags={5} />
 
-        <div>
-          <label className="block text-sm font-medium text-foreground mb-2">Trade Type *</label>
-          <select
-            name="tradeType"
-            value={formData.tradeType || ''}
-            onChange={handleChange}
-            required
-            className="w-full rounded-lg border border-border/50 bg-input px-4 py-2 text-foreground focus:border-primary focus:outline-none focus:ring-2 focus:ring-primary/20 transition-all"
-          >
-            <option value="SCALP">Scalp</option>
-            <option value="DAY">Day Trade</option>
-            <option value="SWING">Swing</option>
-            <option value="POSITION">Position</option>
-          </select>
+        <div className="grid grid-cols-2 gap-3">
+          <div>
+            <label className="text-xs md:text-sm font-semibold text-foreground">Before: {formData.emotion_before}/10</label>
+            <input type="range" name="emotion_before" min="1" max="10" value={formData.emotion_before || 5} onChange={handleChange} disabled={loading} className="w-full" />
+          </div>
+          <div>
+            <label className="text-xs md:text-sm font-semibold text-foreground">After: {formData.emotion_after}/10</label>
+            <input type="range" name="emotion_after" min="1" max="10" value={formData.emotion_after || 5} onChange={handleChange} disabled={loading} className="w-full" />
+          </div>
+        </div>
+      </motion.div>
+
+      {/* Metrics */}
+      <div className="p-2 md:p-4 bg-card border border-border/50 rounded">
+        <div className="grid grid-cols-2 gap-3 text-sm">
+          <div>
+            <p className="text-muted-foreground">P&L</p>
+            <p className={`font-bold ${calculatePnL().pnl >= 0 ? 'text-success' : 'text-danger'}`}>{calculatePnL().pnl.toFixed(2)}</p>
+          </div>
+          <div>
+            <p className="text-muted-foreground">%</p>
+            <p className={`font-bold ${calculatePnL().pnl_percent >= 0 ? 'text-success' : 'text-danger'}`}>{calculatePnL().pnl_percent.toFixed(2)}%</p>
+          </div>
         </div>
       </div>
 
-      {/* Row 2: Entry, Exit, Stop Loss, Take Profit */}
-      <div className="grid grid-cols-1 gap-4 md:grid-cols-4">
-        <div>
-          <label className="block text-sm font-medium text-foreground mb-2">Entry Price *</label>
-          <input
-            type="number"
-            name="entry"
-            value={formData.entry || ''}
-            onChange={handleChange}
-            step="0.0001"
-            required
-            placeholder="1.0500"
-            className="w-full rounded-lg border border-border/50 bg-input px-4 py-2 text-foreground focus:border-primary focus:outline-none focus:ring-2 focus:ring-primary/20 transition-all"
-          />
-        </div>
-
-        <div>
-          <label className="block text-sm font-medium text-foreground mb-2">Exit Price *</label>
-          <input
-            type="number"
-            name="exit"
-            value={formData.exit || ''}
-            onChange={handleChange}
-            step="0.0001"
-            required
-            placeholder="1.0520"
-            className="w-full rounded-lg border border-border/50 bg-input px-4 py-2 text-foreground focus:border-primary focus:outline-none focus:ring-2 focus:ring-primary/20 transition-all"
-          />
-        </div>
-
-        <div>
-          <label className="block text-sm font-medium text-foreground mb-2">Stop Loss *</label>
-          <input
-            type="number"
-            name="stopLoss"
-            value={formData.stopLoss || ''}
-            onChange={handleChange}
-            step="0.0001"
-            required
-            placeholder="1.0480"
-            className="w-full rounded-lg border border-border/50 bg-input px-4 py-2 text-foreground focus:border-primary focus:outline-none focus:ring-2 focus:ring-primary/20 transition-all"
-          />
-        </div>
-
-        <div>
-          <label className="block text-sm font-medium text-foreground mb-2">Take Profit *</label>
-          <input
-            type="number"
-            name="takeProfit"
-            value={formData.takeProfit || ''}
-            onChange={handleChange}
-            step="0.0001"
-            required
-            placeholder="1.0550"
-            className="w-full rounded-lg border border-border/50 bg-input px-4 py-2 text-foreground focus:border-primary focus:outline-none focus:ring-2 focus:ring-primary/20 transition-all"
-          />
-        </div>
-      </div>
-
-      {/* Row 3: Position Size, Risk %, Strategy */}
-      <div className="grid grid-cols-1 gap-4 md:grid-cols-3">
-        <div>
-          <label className="block text-sm font-medium text-foreground mb-2">Position Size *</label>
-          <input
-            type="number"
-            name="positionSize"
-            value={formData.positionSize || ''}
-            onChange={handleChange}
-            step="0.01"
-            required
-            placeholder="0.01"
-            className="w-full rounded-lg border border-border/50 bg-input px-4 py-2 text-foreground focus:border-primary focus:outline-none focus:ring-2 focus:ring-primary/20 transition-all"
-          />
-        </div>
-
-        <div>
-          <label className="block text-sm font-medium text-foreground mb-2">Risk % *</label>
-          <input
-            type="number"
-            name="riskPercent"
-            value={formData.riskPercent || ''}
-            onChange={handleChange}
-            step="0.01"
-            required
-            placeholder="2.00"
-            className="w-full rounded-lg border border-border/50 bg-input px-4 py-2 text-foreground focus:border-primary focus:outline-none focus:ring-2 focus:ring-primary/20 transition-all"
-          />
-        </div>
-
-        <div>
-          <label className="block text-sm font-medium text-foreground mb-2">Strategy *</label>
-          <select
-            name="strategy"
-            value={formData.strategy || ''}
-            onChange={handleChange}
-            required
-            className="w-full rounded-lg border border-border/50 bg-input px-4 py-2 text-foreground focus:border-primary focus:outline-none focus:ring-2 focus:ring-primary/20 transition-all"
-          >
-            <option>MA Crossover</option>
-            <option>Support/Resistance</option>
-            <option>Breakout</option>
-            <option>Pullback</option>
-            <option>Trend Following</option>
-          </select>
-        </div>
-      </div>
-
-      {/* Row 4: Session, Emotion Before, Emotion After */}
-      <div className="grid grid-cols-1 gap-4 md:grid-cols-3">
-        <div>
-          <label className="block text-sm font-medium text-foreground mb-2">Session *</label>
-          <select
-            name="session"
-            value={formData.session || ''}
-            onChange={handleChange}
-            required
-            className="w-full rounded-lg border border-border/50 bg-input px-4 py-2 text-foreground focus:border-primary focus:outline-none focus:ring-2 focus:ring-primary/20 transition-all"
-          >
-            <option value="ASIA">Asia</option>
-            <option value="EUROPE">Europe</option>
-            <option value="US">US</option>
-            <option value="OVERLAP">Overlap</option>
-          </select>
-        </div>
-
-        <div>
-          <label className="block text-sm font-medium text-foreground mb-2">Emotion Before (1-10)</label>
-          <input
-            type="range"
-            name="emotionBefore"
-            value={formData.emotionBefore || 5}
-            onChange={handleChange}
-            min="1"
-            max="10"
-            className="w-full"
-          />
-          <div className="mt-1 text-center text-sm text-muted-foreground">{formData.emotionBefore || 5}/10</div>
-        </div>
-
-        <div>
-          <label className="block text-sm font-medium text-foreground mb-2">Emotion After (1-10)</label>
-          <input
-            type="range"
-            name="emotionAfter"
-            value={formData.emotionAfter || 5}
-            onChange={handleChange}
-            min="1"
-            max="10"
-            className="w-full"
-          />
-          <div className="mt-1 text-center text-sm text-muted-foreground">{formData.emotionAfter || 5}/10</div>
-        </div>
-      </div>
-
-      {/* Notes */}
-      <div>
-        <label className="block text-sm font-medium text-foreground mb-2">Notes</label>
-        <textarea
-          name="notes"
-          value={formData.notes || ''}
-          onChange={handleChange}
-          placeholder="Trade analysis, reasons, observations..."
-          rows={3}
-          className="w-full rounded-lg border border-border/50 bg-input px-4 py-2 text-foreground focus:border-primary focus:outline-none focus:ring-2 focus:ring-primary/20 transition-all"
-        />
-      </div>
-
-      {/* Submit Button */}
-      <div className="flex gap-3 justify-end">
-        <AnimatedButton type="submit" variant="primary" loading={loading}>
-          Save Trade
-        </AnimatedButton>
-      </div>
+      {/* Submit */}
+      <motion.button
+        type="submit"
+        disabled={loading}
+        whileHover={{ scale: 1.02 }}
+        whileTap={{ scale: 0.98 }}
+        onClick={() => console.log("Submit button clicked")}
+        className="w-full bg-primary text-primary-foreground py-2 md:py-3 rounded font-semibold hover:shadow-lg hover:shadow-primary/50 disabled:opacity-50 text-sm md:text-base"
+      >
+        {loading ? 'Saving...' : 'Save Trade'}
+      </motion.button>
     </form>
   );
 }

@@ -6,6 +6,8 @@ import { motion, AnimatePresence } from 'framer-motion';
 import { Check, AlertCircle, CheckCircle2, X } from 'lucide-react';
 import { RootState } from '@/store/store';
 import { DashboardLayout } from '@/components/common/DashboardLayout';
+import { selectUserEmail } from '@/store/UserLoggedInSlice';
+import { fetchUserName, submitPayment, uploadPaymentScreenshot } from '@/lib/supabase-service';
 // import { submitPayment, uploadPaymentScreenshot } from '@/lib/supabase-service';
 
 const FEATURES = [
@@ -22,8 +24,24 @@ const PAYMENT_OPTIONS = [
   { name: 'Easypaisa', number: '03XXXXXXXX', holder: 'Saim Raza' },
 ];
 
+
+// Props type for PageContent
+interface PageContentProps {
+  userEmail: string | null;
+  showPaymentModal: boolean;
+  showAgreementModal: boolean;
+  isAgreed: boolean;
+  isSubmitting: boolean;
+  successMessage: string;
+  setShowPaymentModal: React.Dispatch<React.SetStateAction<boolean>>;
+  setShowAgreementModal: React.Dispatch<React.SetStateAction<boolean>>;
+  setIsAgreed: React.Dispatch<React.SetStateAction<boolean>>;
+  setIsSubmitting: React.Dispatch<React.SetStateAction<boolean>>;
+  setSuccessMessage: React.Dispatch<React.SetStateAction<string>>;
+}
+
 export default function UpgradePage() {
-  const user = useSelector((state: RootState) => state.auth.user);
+ const userEmail = useSelector(selectUserEmail);
   const [showPaymentModal, setShowPaymentModal] = useState(false);
   const [showAgreementModal, setShowAgreementModal] = useState(false);
   const [isAgreed, setIsAgreed] = useState(false);
@@ -33,7 +51,8 @@ export default function UpgradePage() {
   return (
     <DashboardLayout title="Upgrade to Pro" subtitle="Unlock premium features">
       <PageContent 
-        user={user}
+        
+        userEmail={userEmail}
         showPaymentModal={showPaymentModal}
         showAgreementModal={showAgreementModal}
         isAgreed={isAgreed}
@@ -50,7 +69,7 @@ export default function UpgradePage() {
 }
 
 function PageContent({
-  user,
+  userEmail,
   showPaymentModal,
   showAgreementModal,
   isAgreed,
@@ -61,7 +80,7 @@ function PageContent({
   setIsAgreed,
   setIsSubmitting,
   setSuccessMessage,
-}: any) {
+}: PageContentProps) {
 
   const [formData, setFormData] = useState({
     amountPaid: '',
@@ -92,53 +111,67 @@ function PageContent({
     setShowAgreementModal(true);
   };
 
-  const handleAgreementSubmit = async () => {
-    // if (!isAgreed) {
-    //   alert('Please accept the agreement to continue');
-    //   return;
-    // }
+const handleAgreementSubmit = async () => {
+  if (!isAgreed) {
+    alert('Please accept the agreement to continue');
+    return;
+  }
 
-    setIsSubmitting(true);
+  if (!userEmail) {
+    alert('User email not found!');
+    return;
+  }
 
-    // try {
-    //   let screenshotUrl = '';
-    //   if (formData.screenshot) {
-    //     screenshotUrl = await uploadPaymentScreenshot(formData.screenshot, user?.email || '');
-    //   }
+  setIsSubmitting(true);
 
-    //   await submitPayment({
-    //     user_email: user?.email || '',
-    //     name: user?.username || '',
-    //     amount: parseFloat(formData.amountPaid),
-    //     payment_method: formData.paymentMethod,
-    //     sender_number: formData.senderNumber,
-    //     receiver_number: PAYMENT_OPTIONS.find(o => o.name === formData.paidTo)?.number || '',
-    //     months: parseInt(formData.monthsPurchased),
-    //     screenshot_url: screenshotUrl,
-    //   });
+  try {
+    const username = await fetchUserName(userEmail);
 
-    //   setSuccessMessage('Payment Submitted Successfully');
-    //   setShowPaymentModal(false);
-    //   setShowAgreementModal(false);
-    //   setFormData({
-    //     amountPaid: '',
-    //     senderNumber: '',
-    //     accountHolder: '',
-    //     paymentMethod: 'JazzCash',
-    //     paidTo: 'JazzCash',
-    //     monthsPurchased: '1',
-    //     screenshot: null,
-    //   });
-    //   setIsAgreed(false);
+    let screenshotUrl = '';
+    if (formData.screenshot) {
+      screenshotUrl = await uploadPaymentScreenshot(formData.screenshot, userEmail);
+    }
 
-    //   setTimeout(() => setSuccessMessage(''), 4000);
-    // } catch (err) {
-    //   alert('Failed to submit payment. Please try again.');
-    //   console.error('Payment error:', err);
-    // } finally {
-    //   setIsSubmitting(false);
-    // }
-  };
+    await submitPayment({
+      user_email: userEmail,
+      name: username,
+      amount: parseFloat(formData.amountPaid),
+      months: parseInt(formData.monthsPurchased),
+      payment_method: formData.paymentMethod,
+      sender_number: formData.senderNumber,
+      receiver_number: PAYMENT_OPTIONS.find(o => o.name === formData.paidTo)?.number || '',
+      account_holder_name: formData.accountHolder,
+      screenshot_url: screenshotUrl,
+    });
+
+    setSuccessMessage('Payment Submitted Successfully');
+    setShowPaymentModal(false);
+    setShowAgreementModal(false);
+
+    setFormData({
+      amountPaid: '',
+      senderNumber: '',
+      accountHolder: '',
+      paymentMethod: 'JazzCash',
+      paidTo: 'JazzCash',
+      monthsPurchased: '1',
+      screenshot: null,
+    });
+    setIsAgreed(false);
+
+    setTimeout(() => setSuccessMessage(''), 4000);
+  }  catch (err: unknown) {
+  console.error('Payment error:', err);
+
+  if (err instanceof Error) {
+    alert(err.message);
+  } else {
+    alert('Failed to submit payment. Please try again.');
+  }
+  } finally {
+    setIsSubmitting(false);
+  }
+};
 
   return (
     <>

@@ -28,13 +28,13 @@ import {
 
 const navItems = [
   { label: "Dashboard", href: "/dashboard", icon: BarChart3 },
-  { label: "Trade Journal", href: "/trades", icon: BookOpen },
-  { label: "Analytics", href: "/analytics", icon: TrendingUp },
-  { label: "AI Coach", href: "/ai-coach", icon: Brain },
-  { label: "Risk Management", href: "/risk-management", icon: Shield },
-  { label: "Trading Plan", href: "/trading-plan", icon: BookOpen },
-  { label: "Calendar", href: "/calendar", icon: Calendar },
-  { label: "Goals", href: "/goals", icon: Target },
+  { label: "Trade Journal", href: "/dashboard/trades", icon: BookOpen },
+  { label: "Analytics", href: "/dashboard/analytics", icon: TrendingUp },
+  { label: "AI Coach", href: "/dashboard/ai-coach", icon: Brain },
+  { label: "Risk Management", href: "/dashboard/risk-management", icon: Shield },
+  { label: "Trading Plan", href: "/dashboard/trading-plan", icon: BookOpen },
+  { label: "Calendar", href: "/dashboard/calendar", icon: Calendar },
+  { label: "Goals", href: "/dashboard/goals", icon: Target },
 ];
 
 type User = {
@@ -59,7 +59,7 @@ export function Navigation() {
   const dispatch = useDispatch();
 
   const userEmail = useSelector(selectUserEmail);
-  console.log("User Email:", userEmail); // ✅ Redux only has email
+  // console.log("User Email:", userEmail); // ✅ Redux only has email
   const [userData, setUserData] = useState<User | null>(null); // Supabase user data
   const [countdown, setCountdown] = useState("");
   const isActive = (href: string) => pathname === href;
@@ -78,14 +78,6 @@ export function Navigation() {
         .eq("email", userEmail)
         .single();
 
-      console.log("Supabase fetch for email:", userEmail, "->", {
-        data,
-        error,
-      }); // ✅ log result
-      if (error) {
-        console.error("Supabase fetch error:", error);
-        return;
-      }
 
       setUserData(data);
     };

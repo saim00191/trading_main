@@ -7,27 +7,34 @@ export type TradeType = 'SCALP' | 'DAY' | 'SWING' | 'POSITION';
 export type SessionType = 'ASIA' | 'EUROPE' | 'US' | 'OVERLAP';
 
 export interface Trade {
-  id: string;
-  date: Date;
+  id?: string;
+  useremail?: string;
+  username?: string;
+  opened_at: string | Date;
+  closed_at: string | Date;
   pair: string;
-  type: TradeSide;
+  side: 'BUY' | 'SELL';
+  status: 'OPEN' | 'CLOSED';
+  trade_type: 'SCALP' | 'DAY' | 'SWING';
+  market: 'FOREX' | 'CRYPTO' | 'STOCKS' | 'FUTURES';
+  exchange: string;
   entry: number;
-  exit: number;
-  stopLoss: number;
-  takeProfit: number;
-  positionSize: number;
-  riskPercent: number;
-  riskRewardRatio: number;
+  stop_loss: number;
+  take_profit: number;
+  exit_price: number;
+  position_size: number;
+  risk_percent: number;
+  risk_reward: number;
   pnl: number;
-  pnlPercent: number;
-  status: TradeStatus;
-  tradeType: TradeType;
+  pnl_percent: number;
   strategy: string;
-  session: SessionType;
-  emotionBefore: number; // 1-10 scale
-  emotionAfter: number;  // 1-10 scale
-  notes: string;
+  session: 'ASIA' | 'EUROPE' | 'NEWYORK';
   tags: string[];
+  emotion_before: number; // 1-10 scale
+  emotion_after: number; // 1-10 scale
+  notes: string;
+  duration?: string;
+  created_at?: string;
 }
 
 // --------------------

@@ -1,102 +1,118 @@
 'use client';
 
-import React, { useState, useMemo } from 'react';
+import React, { useState, useMemo, useEffect } from 'react';
+import { useSelector } from 'react-redux';
+import { motion, AnimatePresence } from 'framer-motion';
+import { RootState } from '@/store/store';
 import { DashboardLayout } from '@/components/common/DashboardLayout';
-import { TradeTable } from '@/components/common/TradeTable';
-import { Modal } from '@/components/common/Modal';
-import { AnimatedButton } from '@/components/common/AnimatedButton';
 import { TradeForm } from '@/components/trade/TradeForm';
-import { Plus, Download, Filter } from 'lucide-react';
-import { mockTrades } from '@/lib/mock-data';
+import { TradeRow } from '@/components/trade/TradeRow';
+import { Plus, Filter, X } from 'lucide-react';
 import { Trade } from '@/lib/types';
+import { createTrade, getTradesByUser, deleteTrade } from '@/lib/trade_services';
 import { toast } from 'sonner';
+import { selectUserEmail } from '@/store/UserLoggedInSlice';
 
 export default function TradesPage() {
-  const [trades, setTrades] = useState<Trade[]>(mockTrades);
+  const userEmail = useSelector(selectUserEmail);
+  const [trades, setTrades] = useState<Trade[]>([]);
+  const [isLoading, setIsLoading] = useState(true);
   const [isModalOpen, setIsModalOpen] = useState(false);
-  const [searchQuery, setSearchQuery] = useState('');
-  const [filterStrategy, setFilterStrategy] = useState('all');
-  const [filterSession, setFilterSession] = useState('all');
-  const [sortBy, setSortBy] = useState('date');
+  const [showFilters, setShowFilters] = useState(false);
 
-  // Filter and sort trades
+  // Filters
+  const [filterPair, setFilterPair] = useState('all');
+  const [filterSide, setFilterSide] = useState('all');
+  const [filterStatus, setFilterStatus] = useState('all');
+  const [filterType, setFilterType] = useState('all');
+  const [filterMarket, setFilterMarket] = useState('all');
+  const [filterSession, setFilterSession] = useState('all');
+  const [filterExchange, setFilterExchange] = useState('all');
+
+  // Load trades
+  useEffect(() => {
+    const loadTrades = async () => {
+      if (!userEmail) {
+        setIsLoading(false);
+        return;
+      }
+      try {
+        const data = await getTradesByUser(userEmail);
+
+        setTrades(data);
+      } catch (error) {
+        toast.error('Failed to load trades');
+      } finally {
+        setIsLoading(false);
+      }
+    };
+
+    loadTrades();
+  }, [userEmail]);
+
+  // Apply filters
   const filteredTrades = useMemo(() => {
     let result = trades;
 
-    // Search by pair
-    if (searchQuery) {
-      result = result.filter((t) => t.pair.toLowerCase().includes(searchQuery.toLowerCase()));
+    if (filterPair !== 'all') result = result.filter((t) => t.pair === filterPair);
+    if (filterSide !== 'all') result = result.filter((t) => t.side === filterSide);
+    if (filterStatus !== 'all') result = result.filter((t) => t.status === filterStatus);
+    if (filterType !== 'all') result = result.filter((t) => t.trade_type === filterType);
+    if (filterMarket !== 'all') result = result.filter((t) => t.market === filterMarket);
+    if (filterSession !== 'all') result = result.filter((t) => t.session === filterSession);
+    if (filterExchange !== 'all') result = result.filter((t) => t.exchange === filterExchange);
+
+    return result.sort((a, b) => new Date(b.opened_at).getTime() - new Date(a.opened_at).getTime());
+  }, [trades, filterPair, filterSide, filterStatus, filterType, filterMarket, filterSession, filterExchange]);
+
+  // Get unique values for filters
+  const uniquePairs = Array.from(new Set(trades.map((t) => t.pair)));
+  const uniqueExchanges = Array.from(new Set(trades.map((t) => t.exchange)));
+
+  const handleAddTrade = async (tradeData: Trade) => {
+    try {
+      // Use the trade service to create trade with all calculations
+      const newTrade = await createTrade(tradeData);
+      setTrades([newTrade, ...trades]);
+      setIsModalOpen(false);
+      toast.success('Trade saved successfully!');
+    } catch (error) {
+      console.error('[Trades Page] Error:', error);
+      toast.error(error instanceof Error ? error.message : 'Failed to save trade');
     }
-
-    // Filter by strategy
-    if (filterStrategy !== 'all') {
-      result = result.filter((t) => t.strategy === filterStrategy);
-    }
-
-    // Filter by session
-    if (filterSession !== 'all') {
-      result = result.filter((t) => t.session === filterSession);
-    }
-
-    // Sort
-    if (sortBy === 'date') {
-      result.sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime());
-    } else if (sortBy === 'profit') {
-      result.sort((a, b) => b.pnl - a.pnl);
-    } else if (sortBy === 'rr') {
-      result.sort((a, b) => b.riskRewardRatio - a.riskRewardRatio);
-    }
-
-    return result;
-  }, [trades, searchQuery, filterStrategy, filterSession, sortBy]);
-
-  const handleNewTrade = (formData: Partial<Trade>) => {
-    const newTrade: Trade = {
-      id: `trade-${Date.now()}`,
-      date: new Date(),
-      pair: formData.pair || 'EUR/USD',
-      type: formData.type || 'BUY',
-      entry: formData.entry || 0,
-      exit: formData.exit || 0,
-      stopLoss: formData.stopLoss || 0,
-      takeProfit: formData.takeProfit || 0,
-      positionSize: formData.positionSize || 0,
-      riskPercent: formData.riskPercent || 0,
-      riskRewardRatio: formData.riskRewardRatio || 1.0,
-      pnl: (formData.exit || 0 - (formData.entry || 0)) * 10000,
-      pnlPercent: formData.pnlPercent || 0,
-      status: 'CLOSED',
-      tradeType: formData.tradeType || 'DAY',
-      strategy: formData.strategy || 'MA Crossover',
-      session: formData.session || 'EUROPE',
-      emotionBefore: formData.emotionBefore || 5,
-      emotionAfter: formData.emotionAfter || 5,
-      notes: formData.notes || '',
-      tags: [],
-    };
-
-    setTrades([newTrade, ...trades]);
-    setIsModalOpen(false);
-    toast.success('Trade added successfully!');
   };
 
-  const handleExport = () => {
+  const handleDeleteTrade = async (tradeId: string) => {
+    try {
+      await deleteTrade(tradeId);
+      setTrades(trades.filter((t) => t.id !== tradeId));
+      toast.success('Trade deleted');
+    } catch (error) {
+      toast.error('Failed to delete trade');
+    }
+  };
+
+  const handleExportCSV = () => {
     const csv = [
-      ['Date', 'Pair', 'Type', 'Entry', 'Exit', 'Position Size', 'Risk %', 'R:R', 'P&L', 'Status', 'Strategy', 'Session', 'Notes'],
+      ['Date', 'Pair', 'Side', 'Entry', 'Exit', 'SL', 'TP', 'Size', 'Risk%', 'R:R', 'P&L', '%', 'Type', 'Market', 'Exchange', 'Strategy', 'Session'],
       ...filteredTrades.map((t) => [
-        new Date(t.date).toLocaleDateString(),
+        new Date(t.opened_at).toLocaleDateString(),
         t.pair,
-        t.type,
+        t.side,
         t.entry.toFixed(4),
-        t.exit.toFixed(4),
-        t.positionSize.toFixed(2),
-        t.riskPercent.toFixed(2),
-        t.riskRewardRatio.toFixed(2),
-        t.pnl.toFixed(2),
-        t.status,
+        t.exit_price.toFixed(4),
+        t.stop_loss.toFixed(4),
+        t.take_profit.toFixed(4),
+        t.position_size,
+        t.risk_percent,
+        t.risk_reward?.toFixed(2),
+        t.pnl?.toFixed(2),
+        t.pnl_percent?.toFixed(2),
+        t.trade_type,
+        t.market,
+        t.exchange,
         t.strategy,
         t.session,
-        t.notes,
       ]),
     ]
       .map((row) => row.join(','))
@@ -106,126 +122,203 @@ export default function TradesPage() {
     const url = window.URL.createObjectURL(blob);
     const a = document.createElement('a');
     a.href = url;
-    a.download = 'trades.csv';
+    a.download = `trades-${new Date().toISOString().split('T')[0]}.csv`;
     a.click();
-    toast.success('Trades exported successfully!');
+    toast.success('Trades exported');
   };
 
-  const strategies = Array.from(new Set(trades.map((t) => t.strategy)));
-  const sessions = Array.from(new Set(trades.map((t) => t.session)));
-
   return (
-    <DashboardLayout title="Trade Journal" subtitle="Track and analyze all your trades">
+    <DashboardLayout title="Trade Journal" subtitle="Track and manage all your trades">
+      {/* Add Trade Modal */}
+      <AnimatePresence>
+        {isModalOpen && (
+          <motion.div
+            initial={{ opacity: 0 }}
+            animate={{ opacity: 1 }}
+            exit={{ opacity: 0 }}
+            className="fixed inset-0 bg-black/50 backdrop-blur-sm z-50 flex items-center justify-center p-4"
+            onClick={() => setIsModalOpen(false)}
+          >
+            <motion.div
+              initial={{ scale: 0.9, opacity: 0 }}
+              animate={{ scale: 1, opacity: 1 }}
+              exit={{ scale: 0.9, opacity: 0 }}
+              onClick={(e) => e.stopPropagation()}
+              className="w-full max-h-[90vh] overflow-y-auto max-w-4xl"
+            >
+              <div className="flex justify-between items-center p-4 md:p-6 bg-card border border-border/50 rounded-t-lg sticky top-0 z-10">
+                <h2 className="text-lg md:text-2xl font-bold text-foreground">Add Trade</h2>
+                <button onClick={() => setIsModalOpen(false)} className="text-muted-foreground hover:text-foreground">
+                  <X size={24} />
+                </button>
+              </div>
+              <TradeForm onSubmit={handleAddTrade} />
+            </motion.div>
+          </motion.div>
+        )}
+      </AnimatePresence>
+
       {/* Controls */}
-      <section className="mb-8 space-y-4">
-        {/* Top Action Bar */}
-        <div className="flex flex-col gap-4 md:flex-row md:items-center md:justify-between">
-          <div className="flex flex-col gap-2 md:flex-row md:gap-4">
-            <input
-              type="text"
-              placeholder="Search by pair..."
-              value={searchQuery}
-              onChange={(e) => setSearchQuery(e.target.value)}
-              className="rounded-lg border border-border/50 bg-input px-4 py-2 text-foreground placeholder-muted-foreground focus:border-primary focus:outline-none focus:ring-2 focus:ring-primary/20 transition-all"
-            />
-          </div>
+      <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} className="flex flex-col gap-3 md:gap-4 mb-6">
+        <div className="flex flex-wrap gap-2 md:gap-3">
+          <motion.button
+            whileHover={{ scale: 1.05 }}
+            whileTap={{ scale: 0.95 }}
+            onClick={() => setIsModalOpen(true)}
+            className="flex items-center gap-2 bg-primary text-primary-foreground px-3 md:px-4 py-2 md:py-2.5 rounded-lg font-semibold hover:shadow-lg hover:shadow-primary/50 text-sm md:text-base"
+          >
+            <Plus size={18} />
+            New Trade
+          </motion.button>
 
-          <div className="flex gap-2">
-            <AnimatedButton
-              variant="outline"
-              size="md"
-              onClick={handleExport}
-              icon={<Download size={18} />}
+          <motion.button
+            whileHover={{ scale: 1.05 }}
+            whileTap={{ scale: 0.95 }}
+            onClick={handleExportCSV}
+            className="px-3 md:px-4 py-2 md:py-2.5 rounded-lg border border-border bg-card text-foreground hover:bg-card/80 text-sm md:text-base font-semibold"
+          >
+            Export CSV
+          </motion.button>
+
+          <motion.button
+            whileHover={{ scale: 1.05 }}
+            whileTap={{ scale: 0.95 }}
+            onClick={() => setShowFilters(!showFilters)}
+            className="flex items-center gap-2 px-3 md:px-4 py-2 md:py-2.5 rounded-lg border border-border bg-card text-foreground hover:bg-card/80 text-sm md:text-base font-semibold"
+          >
+            <Filter size={18} />
+            Filters {showFilters ? '×' : ''}
+          </motion.button>
+        </div>
+
+        {/* Filters */}
+        <AnimatePresence>
+          {showFilters && (
+            <motion.div
+              initial={{ opacity: 0, height: 0 }}
+              animate={{ opacity: 1, height: 'auto' }}
+              exit={{ opacity: 0, height: 0 }}
+              className="grid grid-cols-2 md:grid-cols-4 gap-2 p-3 bg-card border border-border/50 rounded-lg"
             >
-              Export CSV
-            </AnimatedButton>
-            <AnimatedButton
-              variant="primary"
-              size="md"
-              onClick={() => setIsModalOpen(true)}
-              icon={<Plus size={18} />}
-            >
-              New Trade
-            </AnimatedButton>
+              <select value={filterPair} onChange={(e) => setFilterPair(e.target.value)} className="px-2 py-1 text-xs md:text-sm bg-input border border-border rounded focus:outline-none focus:ring-1 focus:ring-primary">
+                <option value="all">All Pairs</option>
+                {uniquePairs.map((p) => (
+                  <option key={p} value={p}>{p}</option>
+                ))}
+              </select>
+
+              <select value={filterSide} onChange={(e) => setFilterSide(e.target.value)} className="px-2 py-1 text-xs md:text-sm bg-input border border-border rounded focus:outline-none focus:ring-1 focus:ring-primary">
+                <option value="all">All Sides</option>
+                <option value="BUY">BUY</option>
+                <option value="SELL">SELL</option>
+              </select>
+
+              <select value={filterStatus} onChange={(e) => setFilterStatus(e.target.value)} className="px-2 py-1 text-xs md:text-sm bg-input border border-border rounded focus:outline-none focus:ring-1 focus:ring-primary">
+                <option value="all">All Status</option>
+                <option value="OPEN">OPEN</option>
+                <option value="CLOSED">CLOSED</option>
+              </select>
+
+              <select value={filterType} onChange={(e) => setFilterType(e.target.value)} className="px-2 py-1 text-xs md:text-sm bg-input border border-border rounded focus:outline-none focus:ring-1 focus:ring-primary">
+                <option value="all">All Types</option>
+                <option value="SCALP">SCALP</option>
+                <option value="DAY">DAY</option>
+                <option value="SWING">SWING</option>
+              </select>
+
+              <select value={filterMarket} onChange={(e) => setFilterMarket(e.target.value)} className="px-2 py-1 text-xs md:text-sm bg-input border border-border rounded focus:outline-none focus:ring-1 focus:ring-primary">
+                <option value="all">All Markets</option>
+                <option value="FOREX">FOREX</option>
+                <option value="CRYPTO">CRYPTO</option>
+                <option value="STOCKS">STOCKS</option>
+                <option value="FUTURES">FUTURES</option>
+              </select>
+
+              <select value={filterSession} onChange={(e) => setFilterSession(e.target.value)} className="px-2 py-1 text-xs md:text-sm bg-input border border-border rounded focus:outline-none focus:ring-1 focus:ring-primary">
+                <option value="all">All Sessions</option>
+                <option value="ASIA">ASIA</option>
+                <option value="EUROPE">EUROPE</option>
+                <option value="NEWYORK">NEWYORK</option>
+              </select>
+
+              <select value={filterExchange} onChange={(e) => setFilterExchange(e.target.value)} className="px-2 py-1 text-xs md:text-sm bg-input border border-border rounded focus:outline-none focus:ring-1 focus:ring-primary">
+                <option value="all">All Exchanges</option>
+                {uniqueExchanges.map((e) => (
+                  <option key={e} value={e}>{e}</option>
+                ))}
+              </select>
+            </motion.div>
+          )}
+        </AnimatePresence>
+      </motion.div>
+
+      {/* Table */}
+      <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} className="overflow-x-auto bg-card border border-border/50 rounded-lg">
+        {isLoading ? (
+          <div className="p-8 text-center">
+            <motion.div animate={{ rotate: 360 }} transition={{ duration: 2, repeat: Infinity }} className="w-8 h-8 border-3 border-primary border-t-transparent rounded-full mx-auto mb-2" />
+            <p className="text-muted-foreground">Loading trades...</p>
           </div>
-        </div>
-
-        {/* Filter Bar */}
-        <div className="flex flex-col gap-2 md:flex-row md:items-center md:gap-4">
-          <div className="flex items-center gap-2">
-            <Filter size={18} className="text-muted-foreground" />
-            <span className="text-sm font-medium text-muted-foreground">Filters:</span>
+        ) : filteredTrades.length === 0 ? (
+          <div className="p-8 text-center">
+            <p className="text-muted-foreground mb-4">No trades found</p>
+            <button onClick={() => setIsModalOpen(true)} className="text-primary font-semibold hover:underline">Add your first trade</button>
           </div>
+        ) : (
+          <table className="w-full text-xs md:text-sm">
+            <thead>
+              <tr className="border-b border-border bg-muted">
+                <th className="px-2 md:px-4 py-2 md:py-3 text-left text-muted-foreground font-semibold">↓</th>
+                <th className="px-2 md:px-4 py-2 md:py-3 text-left text-muted-foreground font-semibold">Pair</th>
+                <th className="px-2 md:px-4 py-2 md:py-3 text-left text-muted-foreground font-semibold">Side</th>
+                <th className="px-2 md:px-4 py-2 md:py-3 text-left text-muted-foreground font-semibold">Entry</th>
+                <th className="px-2 md:px-4 py-2 md:py-3 text-left text-muted-foreground font-semibold">Exit</th>
+                <th className="px-2 md:px-4 py-2 md:py-3 text-left text-muted-foreground font-semibold">P&L</th>
+                <th className="px-2 md:px-4 py-2 md:py-3 text-left text-muted-foreground font-semibold">%</th>
+                <th className="px-2 md:px-4 py-2 md:py-3 text-left text-muted-foreground font-semibold">Type</th>
+                <th className="px-2 md:px-4 py-2 md:py-3 text-left text-muted-foreground font-semibold">Date</th>
+                <th className="px-2 md:px-4 py-2 md:py-3 text-left text-muted-foreground font-semibold">Status</th>
+                <th className="px-2 md:px-4 py-2 md:py-3 text-left text-muted-foreground font-semibold">×</th>
+              </tr>
+            </thead>
+            <tbody>
+              <AnimatePresence mode="popLayout">
+                {filteredTrades.map((trade) => (
+                  <TradeRow key={trade.id} trade={trade} onDelete={handleDeleteTrade} />
+                ))}
+              </AnimatePresence>
+            </tbody>
+          </table>
+        )}
+      </motion.div>
 
-          <select
-            value={filterStrategy}
-            onChange={(e) => setFilterStrategy(e.target.value)}
-            className="rounded-lg border border-border/50 bg-input px-3 py-2 text-sm text-foreground focus:border-primary focus:outline-none focus:ring-2 focus:ring-primary/20 transition-all"
-          >
-            <option value="all">All Strategies</option>
-            {strategies.map((s) => (
-              <option key={s} value={s}>
-                {s}
-              </option>
-            ))}
-          </select>
-
-          <select
-            value={filterSession}
-            onChange={(e) => setFilterSession(e.target.value)}
-            className="rounded-lg border border-border/50 bg-input px-3 py-2 text-sm text-foreground focus:border-primary focus:outline-none focus:ring-2 focus:ring-primary/20 transition-all"
-          >
-            <option value="all">All Sessions</option>
-            {sessions.map((s) => (
-              <option key={s} value={s}>
-                {s}
-              </option>
-            ))}
-          </select>
-
-          <select
-            value={sortBy}
-            onChange={(e) => setSortBy(e.target.value)}
-            className="rounded-lg border border-border/50 bg-input px-3 py-2 text-sm text-foreground focus:border-primary focus:outline-none focus:ring-2 focus:ring-primary/20 transition-all"
-          >
-            <option value="date">Sort by Date</option>
-            <option value="profit">Sort by Profit</option>
-            <option value="rr">Sort by R:R Ratio</option>
-          </select>
-        </div>
-
-        {/* Stats */}
-        <div className="flex gap-4 text-sm">
-          <div className="rounded-lg bg-card px-4 py-2">
-            <span className="text-muted-foreground">Total Trades: </span>
-            <span className="font-semibold text-foreground">{filteredTrades.length}</span>
+      {/* Stats */}
+      {filteredTrades.length > 0 && (
+        <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} className="grid grid-cols-2 md:grid-cols-4 gap-3 mt-6">
+          <div className="p-3 bg-card border border-border/50 rounded">
+            <p className="text-xs text-muted-foreground">Total Trades</p>
+            <p className="text-xl md:text-2xl font-bold text-foreground">{filteredTrades.length}</p>
           </div>
-          <div className="rounded-lg bg-card px-4 py-2">
-            <span className="text-muted-foreground">Win Rate: </span>
-            <span className="font-semibold text-success">
-              {(
-                (filteredTrades.filter((t) => t.pnl > 0).length / filteredTrades.length || 0) *
-                100
-              ).toFixed(1)}
-              %
-            </span>
+          <div className="p-3 bg-card border border-border/50 rounded">
+            <p className="text-xs text-muted-foreground">Total P&L</p>
+            <p className={`text-xl md:text-2xl font-bold ${filteredTrades.reduce((sum, t) => sum + t.pnl, 0) >= 0 ? 'text-success' : 'text-danger'}`}>
+              {filteredTrades.reduce((sum, t) => sum + t.pnl, 0).toFixed(2)}
+            </p>
           </div>
-          <div className="rounded-lg bg-card px-4 py-2">
-            <span className="text-muted-foreground">Total P&L: </span>
-            <span className={`font-semibold ${filteredTrades.reduce((sum, t) => sum + t.pnl, 0) > 0 ? 'text-success' : 'text-danger'}`}>
-              ${filteredTrades.reduce((sum, t) => sum + t.pnl, 0).toFixed(2)}
-            </span>
+          <div className="p-3 bg-card border border-border/50 rounded">
+            <p className="text-xs text-muted-foreground">Win Rate</p>
+            <p className="text-xl md:text-2xl font-bold text-foreground">
+              {((filteredTrades.filter((t) => t.pnl > 0).length / filteredTrades.length) * 100).toFixed(1)}%
+            </p>
           </div>
-        </div>
-      </section>
-
-      {/* Trades Table */}
-      <TradeTable trades={filteredTrades} />
-
-      {/* New Trade Modal */}
-      <Modal isOpen={isModalOpen} onClose={() => setIsModalOpen(false)} title="Add New Trade">
-        <TradeForm onSubmit={handleNewTrade} />
-      </Modal>
+          <div className="p-3 bg-card border border-border/50 rounded">
+            <p className="text-xs text-muted-foreground">Avg P&L</p>
+            <p className={`text-xl md:text-2xl font-bold ${(filteredTrades.reduce((sum, t) => sum + t.pnl, 0) / filteredTrades.length) >= 0 ? 'text-success' : 'text-danger'}`}>
+              {(filteredTrades.reduce((sum, t) => sum + t.pnl, 0) / filteredTrades.length).toFixed(2)}
+            </p>
+          </div>
+        </motion.div>
+      )}
     </DashboardLayout>
   );
 }

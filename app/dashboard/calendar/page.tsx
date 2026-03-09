@@ -1,42 +1,91 @@
 'use client';
 
-import React, { useMemo } from 'react';
+import React, { useState, useEffect, useMemo } from 'react';
+import { useSelector } from 'react-redux';
+import { motion } from 'framer-motion';
 import { DashboardLayout } from '@/components/common/DashboardLayout';
-import { ChartContainer } from '@/components/common/ChartContainer';
-import { mockTrades } from '@/lib/mock-data';
+import { getTradesByUser } from '@/lib/trade_services';
+import { ChevronLeft, ChevronRight } from 'lucide-react';
+import { toast } from 'sonner';
+import { Trade } from '@/lib/types';
+import { selectUserEmail } from '@/store/UserLoggedInSlice';
 
 export default function CalendarPage() {
-  const currentDate = new Date();
+  const userEmail = useSelector(selectUserEmail);
+  const [trades, setTrades] = useState<Trade[]>([]);
+  const [isLoading, setIsLoading] = useState(true);
+  const [currentDate, setCurrentDate] = useState(new Date());
+
+  // Load trades
+  useEffect(() => {
+    const loadTrades = async () => {
+      if (!userEmail) {
+        setIsLoading(false);
+        return;
+      }
+
+      try {
+        const data = await getTradesByUser(userEmail );
+        setTrades(data);
+      } catch (error) {
+        toast.error('Failed to load trades');
+        console.error(error);
+      } finally {
+        setIsLoading(false);
+      }
+    };
+
+    loadTrades();
+  }, [userEmail]);
+
   const currentMonth = currentDate.getMonth();
   const currentYear = currentDate.getFullYear();
 
-  // Get the first day of the month and the number of days
   const firstDay = new Date(currentYear, currentMonth, 1);
   const lastDay = new Date(currentYear, currentMonth + 1, 0);
   const daysInMonth = lastDay.getDate();
   const startingDayOfWeek = firstDay.getDay();
 
-  // Create trading data map
+  // Build trading data map
   const tradingDataMap = useMemo(() => {
-    const map = new Map<string, { trades: number; pnl: number; wins: number; losses: number }>();
+    const map = new Map<string, { trades: Trade[]; pnl: number; wins: number; losses: number }>();
 
-    mockTrades.forEach((trade) => {
-      const tradeDate = new Date(trade.date);
+    trades.forEach((trade) => {
+      const tradeDate = new Date(trade.opened_at);
       const dateKey = `${tradeDate.getFullYear()}-${tradeDate.getMonth()}-${tradeDate.getDate()}`;
 
       if (!map.has(dateKey)) {
-        map.set(dateKey, { trades: 0, pnl: 0, wins: 0, losses: 0 });
+        map.set(dateKey, { trades: [], pnl: 0, wins: 0, losses: 0 });
       }
 
       const data = map.get(dateKey)!;
-      data.trades += 1;
+      data.trades.push(trade);
       data.pnl += trade.pnl;
       if (trade.pnl > 0) data.wins += 1;
       else if (trade.pnl < 0) data.losses += 1;
     });
 
     return map;
-  }, []);
+  }, [trades]);
+
+  // Calculate month stats
+  const monthStats = useMemo(() => {
+    let totalTrades = 0;
+    let totalPnL = 0;
+    let tradingDays = 0;
+    let winningDays = 0;
+    let losingDays = 0;
+
+    tradingDataMap.forEach((data) => {
+      totalTrades += data.trades.length;
+      totalPnL += data.pnl;
+      tradingDays += 1;
+      if (data.pnl > 0) winningDays += 1;
+      else if (data.pnl < 0) losingDays += 1;
+    });
+
+    return { totalTrades, totalPnL, tradingDays, winningDays, losingDays };
+  }, [tradingDataMap]);
 
   const getColor = (pnl: number | undefined) => {
     if (pnl === undefined) return 'bg-muted/10';
@@ -48,7 +97,10 @@ export default function CalendarPage() {
     return 'bg-danger/80';
   };
 
-  const monthName = new Date(currentYear, currentMonth).toLocaleString('en-US', { month: 'long', year: 'numeric' });
+  const monthName = new Date(currentYear, currentMonth).toLocaleString('en-US', {
+    month: 'long',
+    year: 'numeric',
+  });
   const dayNames = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'];
 
   // Generate calendar days
@@ -60,215 +112,205 @@ export default function CalendarPage() {
     calendarDays.push(i);
   }
 
-  // Calculate statistics for the month
-  const monthStats = useMemo(() => {
-    let totalTrades = 0;
-    let totalPnL = 0;
-    let tradingDays = 0;
-    let wins = 0;
-    let losses = 0;
+  const handlePrevMonth = () => {
+    setCurrentDate(new Date(currentYear, currentMonth - 1));
+  };
 
-    tradingDataMap.forEach((data) => {
-      totalTrades += data.trades;
-      totalPnL += data.pnl;
-      tradingDays += 1;
-      wins += data.wins;
-      losses += data.losses;
-    });
+  const handleNextMonth = () => {
+    setCurrentDate(new Date(currentYear, currentMonth + 1));
+  };
 
-    return { totalTrades, totalPnL, tradingDays, wins, losses };
-  }, [tradingDataMap]);
+  const handleToday = () => {
+    setCurrentDate(new Date());
+  };
 
   return (
-    <DashboardLayout title="Trading Calendar" subtitle="View your trading activity and performance">
-      {/* Month Overview */}
-      <section className="mb-8 grid grid-cols-1 gap-4 md:grid-cols-4">
-        <div className="rounded-lg border border-border/50 bg-card p-6">
-          <p className="text-sm font-medium text-muted-foreground">Trading Days</p>
-          <p className="mt-2 text-3xl font-bold text-primary">{monthStats.tradingDays}</p>
-        </div>
+    <DashboardLayout title="Trading Calendar" subtitle="View your daily trading statistics">
+      <div className="max-w-6xl mx-auto space-y-6">
+        {/* Month Overview */}
+        <motion.div
+          initial={{ opacity: 0, y: 20 }}
+          animate={{ opacity: 1, y: 0 }}
+          className="grid grid-cols-1 gap-4 md:grid-cols-2 lg:grid-cols-4"
+        >
+          <div className="rounded-lg border border-border/50 bg-card p-4 md:p-6">
+            <p className="text-xs md:text-sm font-medium text-muted-foreground">Trading Days</p>
+            <p className="mt-2 text-2xl md:text-3xl font-bold text-primary">{monthStats.tradingDays}</p>
+          </div>
 
-        <div className="rounded-lg border border-border/50 bg-card p-6">
-          <p className="text-sm font-medium text-muted-foreground">Total Trades</p>
-          <p className="mt-2 text-3xl font-bold text-info">{monthStats.totalTrades}</p>
-        </div>
+          <div className="rounded-lg border border-border/50 bg-card p-4 md:p-6">
+            <p className="text-xs md:text-sm font-medium text-muted-foreground">Total Trades</p>
+            <p className="mt-2 text-2xl md:text-3xl font-bold text-info">{monthStats.totalTrades}</p>
+          </div>
 
-        <div className="rounded-lg border border-border/50 bg-card p-6">
-          <p className="text-sm font-medium text-muted-foreground">Monthly P&L</p>
-          <p className={`mt-2 text-3xl font-bold ${monthStats.totalPnL > 0 ? 'text-success' : 'text-danger'}`}>
-            ${monthStats.totalPnL.toFixed(0)}
-          </p>
-        </div>
+          <div className="rounded-lg border border-border/50 bg-card p-4 md:p-6">
+            <p className="text-xs md:text-sm font-medium text-muted-foreground">Monthly P&L</p>
+            <p className={`mt-2 text-2xl md:text-3xl font-bold ${monthStats.totalPnL > 0 ? 'text-success' : 'text-danger'}`}>
+              ${monthStats.totalPnL.toFixed(0)}
+            </p>
+          </div>
 
-        <div className="rounded-lg border border-border/50 bg-card p-6">
-          <p className="text-sm font-medium text-muted-foreground">Win Rate</p>
-          <p className="mt-2 text-3xl font-bold text-warning">
-            {monthStats.totalTrades > 0 ? ((monthStats.wins / monthStats.totalTrades) * 100).toFixed(0) : 0}%
-          </p>
-        </div>
-      </section>
+          <div className="rounded-lg border border-border/50 bg-card p-4 md:p-6">
+            <p className="text-xs md:text-sm font-medium text-muted-foreground">Win Rate</p>
+            <p className="mt-2 text-2xl md:text-3xl font-bold text-success">
+              {monthStats.tradingDays > 0 ? ((monthStats.winningDays / monthStats.tradingDays) * 100).toFixed(0) : 0}%
+            </p>
+          </div>
+        </motion.div>
 
-      {/* Calendar Heatmap */}
-      <section className="mb-8">
-        <ChartContainer title={`Calendar Heatmap - ${monthName}`} description="Green = profitable day, Red = losing day">
-          <div className="space-y-6">
-            {/* Legend */}
-            <div className="flex flex-wrap items-center gap-4 text-sm">
-              <div className="flex items-center gap-2">
-                <div className="h-4 w-4 rounded bg-success/80" />
-                <span className="text-muted-foreground">Highly Profitable</span>
-              </div>
-              <div className="flex items-center gap-2">
-                <div className="h-4 w-4 rounded bg-success/40" />
-                <span className="text-muted-foreground">Profitable</span>
-              </div>
-              <div className="flex items-center gap-2">
-                <div className="h-4 w-4 rounded bg-muted/10" />
-                <span className="text-muted-foreground">No Trading</span>
-              </div>
-              <div className="flex items-center gap-2">
-                <div className="h-4 w-4 rounded bg-danger/40" />
-                <span className="text-muted-foreground">Loss</span>
-              </div>
-              <div className="flex items-center gap-2">
-                <div className="h-4 w-4 rounded bg-danger/80" />
-                <span className="text-muted-foreground">Major Loss</span>
-              </div>
+        {/* Calendar */}
+        <motion.div
+          initial={{ opacity: 0 }}
+          animate={{ opacity: 1 }}
+          className="bg-card border border-border/50 rounded-lg p-4 md:p-6"
+        >
+          {/* Calendar Header */}
+          <div className="flex items-center justify-between mb-6">
+            <h2 className="text-xl md:text-2xl font-bold text-foreground">{monthName}</h2>
+            <div className="flex items-center gap-2">
+              <motion.button
+                whileHover={{ scale: 1.05 }}
+                whileTap={{ scale: 0.95 }}
+                onClick={handlePrevMonth}
+                className="p-2 hover:bg-muted rounded-lg transition-colors"
+              >
+                <ChevronLeft size={20} />
+              </motion.button>
+
+              <motion.button
+                whileHover={{ scale: 1.05 }}
+                whileTap={{ scale: 0.95 }}
+                onClick={handleToday}
+                className="px-3 py-2 text-xs md:text-sm font-medium text-primary hover:bg-primary/10 rounded-lg transition-colors"
+              >
+                Today
+              </motion.button>
+
+              <motion.button
+                whileHover={{ scale: 1.05 }}
+                whileTap={{ scale: 0.95 }}
+                onClick={handleNextMonth}
+                className="p-2 hover:bg-muted rounded-lg transition-colors"
+              >
+                <ChevronRight size={20} />
+              </motion.button>
             </div>
+          </div>
 
-            {/* Calendar Grid */}
-            <div className="overflow-x-auto">
-              <div className="min-w-full">
-                {/* Day names */}
-                <div className="grid grid-cols-7 gap-2 mb-2">
-                  {dayNames.map((day) => (
-                    <div
+          {isLoading ? (
+            <div className="flex items-center justify-center py-16">
+              <motion.div
+                className="w-8 h-8 border-4 border-primary/30 border-t-primary rounded-full"
+                animate={{ rotate: 360 }}
+                transition={{ duration: 1, repeat: Infinity }}
+              />
+            </div>
+          ) : (
+            <>
+              {/* Day Names */}
+              <div className="grid grid-cols-7 gap-2 mb-4">
+                {dayNames.map((day) => (
+                  <div key={day} className="text-center text-xs md:text-sm font-semibold text-muted-foreground py-2">
+                    {day}
+                  </div>
+                ))}
+              </div>
+
+              {/* Calendar Days */}
+              <div className="grid grid-cols-7 gap-2">
+                {calendarDays.map((day, index) => {
+                  if (day === null) {
+                    return <div key={`empty-${index}`} className="aspect-square" />;
+                  }
+
+                  const dateKey = `${currentYear}-${currentMonth}-${day}`;
+                  const dayData = tradingDataMap.get(dateKey);
+                  const isFutureDate = new Date(currentYear, currentMonth, day) > new Date();
+
+                  return (
+                    <motion.div
                       key={day}
-                      className="h-10 flex items-center justify-center text-sm font-semibold text-muted-foreground"
+                      whileHover={!isFutureDate ? { scale: 1.05 } : undefined}
+                      className={`aspect-square rounded-lg border border-border/50 p-2 flex flex-col items-center justify-center text-xs md:text-sm font-medium cursor-pointer transition-all ${
+                        isFutureDate
+                          ? 'bg-muted/10 text-muted-foreground opacity-50'
+                          : dayData
+                          ? `${getColor(dayData.pnl)} text-foreground`
+                          : 'bg-muted/10 text-muted-foreground hover:bg-muted/20'
+                      }`}
                     >
-                      {day}
-                    </div>
-                  ))}
-                </div>
-
-                {/* Calendar days */}
-                <div className="grid grid-cols-7 gap-2">
-                  {calendarDays.map((day, index) => {
-                    if (day === null) {
-                      return <div key={`empty-${index}`} />;
-                    }
-
-                    const dateKey = `${currentYear}-${currentMonth}-${day}`;
-                    const data = tradingDataMap.get(dateKey);
-                    const bgColor = getColor(data?.pnl);
-
-                    return (
-                      <div
-                        key={day}
-                        className={`
-                          relative aspect-square rounded-lg border border-border/30 p-2
-                          transition-all duration-300 hover:scale-110 hover:shadow-lg
-                          ${bgColor} cursor-pointer group
-                        `}
-                        title={
-                          data
-                            ? `${day}: ${data.trades} trades, P&L: $${data.pnl.toFixed(0)}, Wins: ${data.wins}, Losses: ${data.losses}`
-                            : `${day}: No trading`
-                        }
-                      >
-                        <div className="flex flex-col h-full">
-                          <span className="text-xs font-semibold text-foreground">{day}</span>
-
-                          {data && (
-                            <div className="flex-1 flex flex-col justify-end text-xs gap-0.5">
-                              <span className={data.pnl > 0 ? 'text-success' : 'text-danger'}>
-                                ${Math.abs(data.pnl).toFixed(0)}
-                              </span>
-                              <span className="text-muted-foreground text-[10px]">{data.trades}t</span>
-                            </div>
-                          )}
-                        </div>
-
-                        {/* Tooltip */}
-                        {data && (
-                          <div className="pointer-events-none absolute -top-12 left-1/2 -translate-x-1/2 rounded-lg bg-card p-2 text-xs text-foreground shadow-lg opacity-0 transition-opacity group-hover:opacity-100 whitespace-nowrap border border-border/50 z-10">
-                            <div className="font-semibold">{day}</div>
-                            <div className="text-muted-foreground">{data.trades} trades</div>
-                            <div className={data.pnl > 0 ? 'text-success' : 'text-danger'}>
-                              ${data.pnl.toFixed(0)}
-                            </div>
+                      {dayData && !isFutureDate ? (
+                        <div className="text-center">
+                          <div className="font-bold">{day}</div>
+                          <div className="text-xs mt-1">
+                            {dayData.trades.length} {dayData.trades.length === 1 ? 'trade' : 'trades'}
                           </div>
-                        )}
-                      </div>
-                    );
-                  })}
-                </div>
+                          <div className={`text-xs font-bold mt-1 ${dayData.pnl > 0 ? 'text-success' : 'text-danger'}`}>
+                            ${dayData.pnl.toFixed(0)}
+                          </div>
+                        </div>
+                      ) : isFutureDate ? (
+                        <div className="text-center">
+                          <div className="font-bold">{day}</div>
+                          <div className="text-xs mt-1">Future</div>
+                        </div>
+                      ) : (
+                        <div className="text-center">
+                          <div className="font-bold">{day}</div>
+                          <div className="text-xs mt-1">No trades</div>
+                        </div>
+                      )}
+                    </motion.div>
+                  );
+                })}
               </div>
+            </>
+          )}
+        </motion.div>
+
+        {/* Legend */}
+        <motion.div
+          initial={{ opacity: 0 }}
+          animate={{ opacity: 1 }}
+          className="bg-card border border-border/50 rounded-lg p-4 md:p-6"
+        >
+          <h3 className="text-sm md:text-base font-bold text-foreground mb-4">Color Legend</h3>
+          <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
+            <div className="flex items-center gap-2">
+              <div className="w-4 h-4 bg-success/80 rounded" />
+              <span className="text-xs md:text-sm text-muted-foreground">+100 P&L</span>
+            </div>
+            <div className="flex items-center gap-2">
+              <div className="w-4 h-4 bg-success/60 rounded" />
+              <span className="text-xs md:text-sm text-muted-foreground">+50 to +100</span>
+            </div>
+            <div className="flex items-center gap-2">
+              <div className="w-4 h-4 bg-success/40 rounded" />
+              <span className="text-xs md:text-sm text-muted-foreground">+0 to +50</span>
+            </div>
+            <div className="flex items-center gap-2">
+              <div className="w-4 h-4 bg-danger/40 rounded" />
+              <span className="text-xs md:text-sm text-muted-foreground">-50 to 0</span>
+            </div>
+            <div className="flex items-center gap-2">
+              <div className="w-4 h-4 bg-danger/60 rounded" />
+              <span className="text-xs md:text-sm text-muted-foreground">-100 to -50</span>
+            </div>
+            <div className="flex items-center gap-2">
+              <div className="w-4 h-4 bg-danger/80 rounded" />
+              <span className="text-xs md:text-sm text-muted-foreground">-100 P&L</span>
+            </div>
+            <div className="flex items-center gap-2">
+              <div className="w-4 h-4 bg-muted/10 rounded" />
+              <span className="text-xs md:text-sm text-muted-foreground">No trades</span>
+            </div>
+            <div className="flex items-center gap-2">
+              <div className="w-4 h-4 bg-muted/20 rounded" />
+              <span className="text-xs md:text-sm text-muted-foreground">Future date</span>
             </div>
           </div>
-        </ChartContainer>
-      </section>
-
-      {/* Top Trading Days */}
-      <section>
-        <ChartContainer title="Best & Worst Trading Days" description="Your top performing days">
-          <div className="grid grid-cols-1 gap-6 md:grid-cols-2">
-            {/* Best days */}
-            <div>
-              <h3 className="mb-3 font-semibold text-foreground">Best Days</h3>
-              <div className="space-y-2">
-                {Array.from(tradingDataMap.entries())
-                  .sort(([, a], [, b]) => b.pnl - a.pnl)
-                  .slice(0, 5)
-                  .map(([date, data]) => {
-                    const [year, month, day] = date.split('-');
-                    const displayDate = new Date(parseInt(year), parseInt(month), parseInt(day)).toLocaleDateString(
-                      'en-US',
-                      { month: 'short', day: 'numeric' }
-                    );
-
-                    return (
-                      <div key={date} className="flex items-center justify-between rounded-lg bg-success/10 p-3">
-                        <div>
-                          <p className="font-medium text-foreground">{displayDate}</p>
-                          <p className="text-sm text-muted-foreground">{data.trades} trades</p>
-                        </div>
-                        <span className="font-bold text-success">${data.pnl.toFixed(0)}</span>
-                      </div>
-                    );
-                  })}
-              </div>
-            </div>
-
-            {/* Worst days */}
-            <div>
-              <h3 className="mb-3 font-semibold text-foreground">Worst Days</h3>
-              <div className="space-y-2">
-                {Array.from(tradingDataMap.entries())
-                  .sort(([, a], [, b]) => a.pnl - b.pnl)
-                  .slice(0, 5)
-                  .map(([date, data]) => {
-                    const [year, month, day] = date.split('-');
-                    const displayDate = new Date(parseInt(year), parseInt(month), parseInt(day)).toLocaleDateString(
-                      'en-US',
-                      { month: 'short', day: 'numeric' }
-                    );
-
-                    return (
-                      <div key={date} className="flex items-center justify-between rounded-lg bg-danger/10 p-3">
-                        <div>
-                          <p className="font-medium text-foreground">{displayDate}</p>
-                          <p className="text-sm text-muted-foreground">{data.trades} trades</p>
-                        </div>
-                        <span className="font-bold text-danger">${data.pnl.toFixed(0)}</span>
-                      </div>
-                    );
-                  })}
-              </div>
-            </div>
-          </div>
-        </ChartContainer>
-      </section>
+        </motion.div>
+      </div>
     </DashboardLayout>
   );
 }

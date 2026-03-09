@@ -1,11 +1,9 @@
 'use client';
 
-import React from 'react';
 import { useRouter } from 'next/navigation';
 import { useSelector } from 'react-redux';
 import { motion } from 'framer-motion';
 import Link from 'next/link';
-import { RootState } from '@/store/store';
 import HeroSection from '@/components/landing/HeroSection';
 import ProblemSection from '@/components/landing/ProblemSection';
 import HowItWorksSection from '@/components/landing/HowItWorks';
