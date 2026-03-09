@@ -194,7 +194,6 @@ const handleSubmit = async (e: React.FormEvent<HTMLFormElement>) => {
     console.error("Trade submission error (unknown):", error);
     toast.error("Something went wrong while saving trade");
   }
-}
   } finally {
     setLoading(false);
   }
