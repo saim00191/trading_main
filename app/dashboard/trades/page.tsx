@@ -3,7 +3,6 @@
 import React, { useState, useMemo, useEffect } from 'react';
 import { useSelector } from 'react-redux';
 import { motion, AnimatePresence } from 'framer-motion';
-import { RootState } from '@/store/store';
 import { DashboardLayout } from '@/components/common/DashboardLayout';
 import { TradeForm } from '@/components/trade/TradeForm';
 import { TradeRow } from '@/components/trade/TradeRow';
@@ -12,6 +11,7 @@ import { Trade } from '@/lib/types';
 import { createTrade, getTradesByUser, deleteTrade } from '@/lib/trade_services';
 import { toast } from 'sonner';
 import { selectUserEmail } from '@/store/UserLoggedInSlice';
+import { supabase } from '@/lib/supabaseClient';
 
 export default function TradesPage() {
   const userEmail = useSelector(selectUserEmail);
@@ -62,25 +62,233 @@ export default function TradesPage() {
     if (filterSession !== 'all') result = result.filter((t) => t.session === filterSession);
     if (filterExchange !== 'all') result = result.filter((t) => t.exchange === filterExchange);
 
-    return result.sort((a, b) => new Date(b.opened_at).getTime() - new Date(a.opened_at).getTime());
+return result.sort((a, b) => {
+  const dateA = a.opened_at ? new Date(a.opened_at).getTime() : 0;
+  const dateB = b.opened_at ? new Date(b.opened_at).getTime() : 0;
+  return dateB - dateA;
+});
   }, [trades, filterPair, filterSide, filterStatus, filterType, filterMarket, filterSession, filterExchange]);
 
   // Get unique values for filters
   const uniquePairs = Array.from(new Set(trades.map((t) => t.pair)));
   const uniqueExchanges = Array.from(new Set(trades.map((t) => t.exchange)));
 
-  const handleAddTrade = async (tradeData: Trade) => {
-    try {
-      // Use the trade service to create trade with all calculations
-      const newTrade = await createTrade(tradeData);
-      setTrades([newTrade, ...trades]);
-      setIsModalOpen(false);
-      toast.success('Trade saved successfully!');
-    } catch (error) {
-      console.error('[Trades Page] Error:', error);
-      toast.error(error instanceof Error ? error.message : 'Failed to save trade');
+  // const handleAddTrade = async (tradeData: Trade) => {
+  //   try {
+
+  //   console.log('--- handleAddTrade START ---');
+  //   console.log('tradeData:', tradeData);
+  //   console.log('userEmail:', userEmail);
+
+  //   // Fetch user info from Supabase
+  //   const { data: userData, error: userError } = await supabase
+  //     .from('users')
+  //     .select('id, user_type, trade_left_free_trial')
+  //     .eq('email', userEmail)
+  //     .single();
+
+  //   console.log('Fetched userData:', userData);
+  //   console.log('userError:', userError);
+
+  //   if (userError) {
+  //     console.error('[Supabase Fetch User Error]', userError);
+  //     toast.error('Failed to fetch user data');
+  //     return;
+  //   }
+
+  //   if (!userData) {
+  //     console.error('[Supabase Fetch User] No userData returned');
+  //     toast.error('User not found');
+  //     return;
+  //   }
+
+  //   // If user is free, check trades left
+  //   if (userData.user_type === 'free') {
+  //     console.log('User is free. Trades left:', userData.trade_left_free_trial);
+
+  //     if (userData.trade_left_free_trial <= 0) {
+  //       console.warn('Free plan limit reached');
+  //       toast.error('Free plan limit reached. Upgrade to pro to add more trades.');
+  //       return;
+  //     }
+
+  //     // Decrement trade_left_free_trial
+  //     console.log('Attempting to decrement trade_left_free_trial...');
+  //     const { data: updatedData, error: updateError } = await supabase
+  //       .from('users')
+  //       .update({
+  //         trade_left_free_trial: userData.trade_left_free_trial - 1,
+  //         last_updated_at: new Date().toISOString()
+  //       })
+  //       .eq('id', userData.id)
+  //       .select(); // Select updated row to confirm
+
+  //     console.log('Updated Data:', updatedData);
+  //     console.log('Update Error:', updateError);
+
+  //     if (updateError) {
+  //       console.error('[Supabase Update Error]', updateError);
+  //       toast.error('Failed to update trade limit');
+  //       return;
+  //     }
+
+  //     if (!updatedData || updatedData.length === 0) {
+  //       console.warn('[Supabase Update Warning] No rows updated. Check RLS/policies.');
+  //       toast.error('Trade limit not updated. Contact support.');
+  //       return;
+  //     }
+
+  //     console.log('Trade limit decremented successfully.');
+  //   } else {
+  //     console.log('User is not free. Skipping trade limit check.');
+  //   }
+
+
+  //     // Use the trade service to create trade with all calculations
+  //     const newTrade = await createTrade(tradeData);
+  //     setTrades([newTrade, ...trades]);
+  //     setIsModalOpen(false);
+  //     toast.success('Trade saved successfully!');
+  //   } catch (error) {
+  //     console.error('[Trades Page] Error:', error);
+  //     toast.error(error instanceof Error ? error.message : 'Failed to save trade');
+  //   }
+  // };
+
+//   const handleAddTrade = async (tradeData: Trade) => {
+//   try {
+//     console.log('--- handleAddTrade START ---');
+//     console.log('tradeData:', tradeData);
+//     console.log('userEmail:', userEmail);
+
+//     // Convert datetime-local strings to ISO for consistent storage
+//     tradeData.opened_at = tradeData.opened_at ? new Date(tradeData.opened_at).toISOString() : undefined;
+//     tradeData.closed_at = tradeData.closed_at ? new Date(tradeData.closed_at).toISOString() : undefined;
+
+//     // Fetch user info from Supabase
+//     const { data: userData, error: userError } = await supabase
+//       .from('users')
+//       .select('id, user_type, trade_left_free_trial')
+//       .eq('email', userEmail)
+//       .single();
+
+//     if (userError) {
+//       console.error('[Supabase Fetch User Error]', userError);
+//       toast.error('Failed to fetch user data');
+//       return;
+//     }
+
+//     if (!userData) {
+//       console.error('[Supabase Fetch User] No userData returned');
+//       toast.error('User not found');
+//       return;
+//     }
+
+//     // Free plan: check trade limits
+//     if (userData.user_type === 'free') {
+//       if (userData.trade_left_free_trial <= 0) {
+//         toast.error('Free plan limit reached. Upgrade to pro to add more trades.');
+//         return;
+//       }
+
+//       // Decrement trades left
+//       const { data: updatedData, error: updateError } = await supabase
+//         .from('users')
+//         .update({
+//           trade_left_free_trial: userData.trade_left_free_trial - 1,
+//           last_updated_at: new Date().toISOString()
+//         })
+//         .eq('id', userData.id)
+//         .select();
+
+//       if (updateError || !updatedData || updatedData.length === 0) {
+//         console.error('[Supabase Update Error]', updateError);
+//         toast.error('Failed to update trade limit');
+//         return;
+//       }
+//     }
+
+//     // Create trade via service
+//     const newTrade = await createTrade(tradeData);
+
+//     // Ensure dates are parsed for immediate display
+//     newTrade.opened_at = newTrade.opened_at ? new Date(newTrade.opened_at).toISOString() : undefined;
+//     newTrade.closed_at = newTrade.closed_at ? new Date(newTrade.closed_at).toISOString() : undefined;
+
+//     setTrades([newTrade, ...trades]);
+//     setIsModalOpen(false);
+//     toast.success('Trade saved successfully!');
+//   } catch (error) {
+//     console.error('[Trades Page] Error:', error);
+//     toast.error(error instanceof Error ? error.message : 'Failed to save trade');
+//   }
+// };
+
+const handleAddTrade = async (tradeData: Trade) => {
+  try {
+    console.log('--- handleAddTrade START ---');
+    console.log('tradeData:', tradeData);
+    console.log('userEmail:', userEmail);
+
+    // Store user local datetime as-is (from input type="datetime-local")
+    tradeData.opened_at = tradeData.opened_at ? tradeData.opened_at : undefined;
+    tradeData.closed_at = tradeData.closed_at ? tradeData.closed_at : undefined;
+
+    // Fetch user info from Supabase
+    const { data: userData, error: userError } = await supabase
+      .from('users')
+      .select('id, user_type, trade_left_free_trial')
+      .eq('email', userEmail)
+      .single();
+
+    if (userError) {
+      console.error('[Supabase Fetch User Error]', userError);
+      toast.error('Failed to fetch user data');
+      return;
     }
-  };
+
+    if (!userData) {
+      console.error('[Supabase Fetch User] No userData returned');
+      toast.error('User not found');
+      return;
+    }
+
+    // Free plan: check trade limits
+    if (userData.user_type === 'free') {
+      if (userData.trade_left_free_trial <= 0) {
+        toast.error('Free plan limit reached. Upgrade to pro to add more trades.');
+        return;
+      }
+
+      // Decrement trades left
+      const { data: updatedData, error: updateError } = await supabase
+        .from('users')
+        .update({
+          trade_left_free_trial: userData.trade_left_free_trial - 1,
+          last_updated_at: new Date().toISOString()
+        })
+        .eq('id', userData.id)
+        .select();
+
+      if (updateError || !updatedData || updatedData.length === 0) {
+        console.error('[Supabase Update Error]', updateError);
+        toast.error('Failed to update trade limit');
+        return;
+      }
+    }
+
+    // Create trade via service
+    const newTrade = await createTrade(tradeData);
+
+    // Keep local datetime strings for display (no UTC conversion)
+    setTrades([newTrade, ...trades]);
+    setIsModalOpen(false);
+    toast.success('Trade saved successfully!');
+  } catch (error) {
+    console.error('[Trades Page] Error:', error);
+    toast.error(error instanceof Error ? error.message : 'Failed to save trade');
+  }
+};
 
   const handleDeleteTrade = async (tradeId: string) => {
     try {
@@ -92,41 +300,98 @@ export default function TradesPage() {
     }
   };
 
+  // const handleExportCSV = () => {
+  //   const csv = [
+  //     ['Date', 'Pair', 'Side', 'Entry', 'Exit', 'SL', 'TP', 'Size', 'Risk%', 'R:R', 'P&L', '%', 'Type', 'Market', 'Exchange', 'Strategy', 'Session'],
+  //     ...filteredTrades.map((t) => [
+  //        t.opened_at ? new Date(t.opened_at).toLocaleDateString() : '',
+  //       t.pair,
+  //       t.side,
+  //       t.entry.toFixed(4),
+  //       t.exit_price.toFixed(4),
+  //       t.stop_loss.toFixed(4),
+  //       t.take_profit.toFixed(4),
+  //       t.position_size,
+  //       t.risk_percent,
+  //       t.risk_reward?.toFixed(2),
+  //       t.pnl?.toFixed(2),
+  //       t.pnl_percent?.toFixed(2),
+  //       t.trade_type,
+  //       t.market,
+  //       t.exchange,
+  //       t.strategy,
+  //       t.session,
+  //     ]),
+  //   ]
+  //     .map((row) => row.join(','))
+  //     .join('\n');
+
+  //   const blob = new Blob([csv], { type: 'text/csv' });
+  //   const url = window.URL.createObjectURL(blob);
+  //   const a = document.createElement('a');
+  //   a.href = url;
+  //   a.download = `trades-${new Date().toISOString().split('T')[0]}.csv`;
+  //   a.click();
+  //   toast.success('Trades exported');
+  // };
+
   const handleExportCSV = () => {
-    const csv = [
-      ['Date', 'Pair', 'Side', 'Entry', 'Exit', 'SL', 'TP', 'Size', 'Risk%', 'R:R', 'P&L', '%', 'Type', 'Market', 'Exchange', 'Strategy', 'Session'],
-      ...filteredTrades.map((t) => [
-        new Date(t.opened_at).toLocaleDateString(),
-        t.pair,
-        t.side,
-        t.entry.toFixed(4),
-        t.exit_price.toFixed(4),
-        t.stop_loss.toFixed(4),
-        t.take_profit.toFixed(4),
-        t.position_size,
-        t.risk_percent,
-        t.risk_reward?.toFixed(2),
-        t.pnl?.toFixed(2),
-        t.pnl_percent?.toFixed(2),
-        t.trade_type,
-        t.market,
-        t.exchange,
-        t.strategy,
-        t.session,
-      ]),
-    ]
-      .map((row) => row.join(','))
-      .join('\n');
+  if (!filteredTrades.length) {
+    toast.error('No trades to export');
+    return;
+  }
 
-    const blob = new Blob([csv], { type: 'text/csv' });
-    const url = window.URL.createObjectURL(blob);
-    const a = document.createElement('a');
-    a.href = url;
-    a.download = `trades-${new Date().toISOString().split('T')[0]}.csv`;
-    a.click();
-    toast.success('Trades exported');
-  };
+  const csvRows = [
+    [
+      'Date',
+      'Pair',
+      'Side',
+      'Entry',
+      'Exit',
+      'SL',
+      'TP',
+      'Size',
+      'Risk%',
+      'R:R',
+      'P&L',
+      '%',
+      'Type',
+      'Market',
+      'Exchange',
+      'Strategy',
+      'Session',
+    ],
+    ...filteredTrades.map((t) => [
+      t.opened_at ? new Date(t.opened_at).toLocaleString() : '',
+      t.pair,
+      t.side,
+      t.entry.toFixed(4),
+      t.exit_price.toFixed(4),
+      t.stop_loss.toFixed(4),
+      t.take_profit.toFixed(4),
+      t.position_size,
+      t.risk_percent,
+      t.risk_reward?.toFixed(2) ?? '',
+      t.pnl?.toFixed(2) ?? '',
+      t.pnl_percent?.toFixed(2) ?? '',
+      t.trade_type,
+      t.market,
+      t.exchange,
+      t.strategy,
+      t.session,
+    ]),
+  ];
 
+  const csvContent = csvRows.map((row) => row.join(',')).join('\n');
+  const blob = new Blob([csvContent], { type: 'text/csv' });
+  const url = window.URL.createObjectURL(blob);
+
+  const a = document.createElement('a');
+  a.href = url;
+  a.download = `trades-${new Date().toLocaleDateString().replace(/\//g, '-')}.csv`;
+  a.click();
+  toast.success('Trades exported successfully!');
+};
   return (
     <DashboardLayout title="Trade Journal" subtitle="Track and manage all your trades">
       {/* Add Trade Modal */}

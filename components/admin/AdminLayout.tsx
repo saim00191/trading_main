@@ -46,9 +46,12 @@ export function AdminLayout({ children }: AdminLayoutProps) {
   }
 
   return (
-    <div className="min-h-screen bg-background">
+    <div className="min-h-screen bg-background flex">
+      {/* Sidebar (both desktop & mobile handled inside AdminSidebar) */}
       <AdminSidebar />
-      <main className="md:ml-64 p-4 md:p-8">
+
+      {/* Main content */}
+      <main className="flex-1 md:ml-64 p-4 md:p-8">
         {children}
       </main>
     </div>

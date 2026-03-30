@@ -4,12 +4,9 @@ import React, { useState } from 'react';
 import { useSelector } from 'react-redux';
 import { motion, AnimatePresence } from 'framer-motion';
 import { Check, AlertCircle, CheckCircle2, X } from 'lucide-react';
-import { RootState } from '@/store/store';
 import { DashboardLayout } from '@/components/common/DashboardLayout';
 import { selectUserEmail } from '@/store/UserLoggedInSlice';
 import { fetchUserName, submitPayment, uploadPaymentScreenshot } from '@/lib/supabase-service';
-// import { submitPayment, uploadPaymentScreenshot } from '@/lib/supabase-service';
-
 const FEATURES = [
   'Advanced Analytics Dashboard',
   'AI Trading Coach',

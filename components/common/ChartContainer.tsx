@@ -21,7 +21,7 @@ export function ChartContainer({
     <div
       className={`
         rounded-lg border border-border/50 bg-card p-6
-        transition-all duration-300 hover-scale hover-glow
+        transition-all duration-300 hover:scale-[1.02] hover-glow
         ${animated ? 'animate-fade-in' : ''}
         ${className}
       `}

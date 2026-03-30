@@ -10,8 +10,8 @@ export interface Trade {
   id?: string;
   useremail?: string;
   username?: string;
-  opened_at: string | Date;
-  closed_at: string | Date;
+  opened_at?: string | Date;
+  closed_at?: string | Date;
   pair: string;
   side: 'BUY' | 'SELL';
   status: 'OPEN' | 'CLOSED';
@@ -22,6 +22,7 @@ export interface Trade {
   stop_loss: number;
   take_profit: number;
   exit_price: number;
+  symbol: string;
   position_size: number;
   risk_percent: number;
   risk_reward: number;
@@ -103,4 +104,32 @@ export interface Goal {
   dateStart: Date;
   dateEnd: Date;
   status: GoalStatus;
+}
+
+
+export type NotificationStatus = 'pending' | 'seen'
+export type SendMode = 'single' | 'multiple' | 'all'
+
+export interface Notification {
+  id: string
+  username: string
+  email: string
+  subject?: string
+  message: string
+  status: NotificationStatus
+  created_at: string
+  updated_at: string
+}
+
+export interface User {
+  id: string
+  username: string
+  email: string
+}
+
+export interface NotificationFormData {
+  subject: string
+  message: string
+  sendMode: SendMode
+  selectedUserIds?: string[]
 }

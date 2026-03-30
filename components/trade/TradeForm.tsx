@@ -14,6 +14,28 @@ interface TradeFormProps {
   onSubmit: (trade: Trade) => Promise<void>;
 }
 
+
+const toUTC = (dateValue?: string | Date): string | undefined => {
+  if (!dateValue) return undefined;
+
+  if (dateValue instanceof Date) {
+    return dateValue.toISOString();
+  }
+
+  return new Date(dateValue).toISOString();
+};
+
+// Convert UTC → local (for input display)
+const toLocalInput = (utcString?: string) => {
+  if (!utcString) return '';
+
+  const date = new Date(utcString);
+  const offset = date.getTimezoneOffset();
+
+  const local = new Date(date.getTime() - offset * 60000);
+  return local.toISOString().slice(0, 16);
+};
+
 export function TradeForm({ onSubmit }: TradeFormProps) {
  
    const userEmail = useSelector(selectUserEmail);
@@ -138,7 +160,8 @@ const handleSubmit = async (e: React.FormEvent<HTMLFormElement>) => {
     const riskReward =
       formData.take_profit &&
       formData.stop_loss &&
-      formData.entry
+      formData.entry &&
+      (formData.entry - formData.stop_loss) !== 0
         ? parseFloat(
             (
               (formData.take_profit - formData.entry) /
@@ -147,10 +170,16 @@ const handleSubmit = async (e: React.FormEvent<HTMLFormElement>) => {
           )
         : 0;
 
+    /* ✅ FIXED TIMEZONE HERE */
     const tradeData: Trade = {
       ...(formData as Trade),
+
+      opened_at: toUTC(formData.opened_at),
+      closed_at: toUTC(formData.closed_at),
+
       useremail: userEmail,
-      username:username,
+      username: username,
+
       pnl,
       pnl_percent,
       risk_reward: riskReward,
@@ -186,14 +215,13 @@ const handleSubmit = async (e: React.FormEvent<HTMLFormElement>) => {
 
     setErrors({});
   } catch (error: unknown) {
-  // Narrow the type safely
-  if (error instanceof Error) {
-    console.error("Trade submission error:", error);
-    toast.error(error.message || "Something went wrong while saving trade");
-  } else {
-    console.error("Trade submission error (unknown):", error);
-    toast.error("Something went wrong while saving trade");
-  }
+    if (error instanceof Error) {
+      console.error("Trade submission error:", error);
+      toast.error(error.message || "Something went wrong while saving trade");
+    } else {
+      console.error("Trade submission error (unknown):", error);
+      toast.error("Something went wrong while saving trade");
+    }
   } finally {
     setLoading(false);
   }

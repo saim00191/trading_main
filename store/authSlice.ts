@@ -11,28 +11,30 @@ export interface User {
   createdAt?: string;
 }
 
+interface TempSignupData {
+  username: string;
+  email: string;
+  phoneNumber: string;
+  password?: string;
+  uid?: string;
+}
+
 interface AuthState {
   user: User | null;
-  userEmail: string | null; // ✅ NEW STATE ADDED
+  userEmail: string | null; // ✅ store email separately
   isLoading: boolean;
   error: string | null;
   isAuthenticated: boolean;
-  tempSignupData?: {
-    username: string;
-    email: string;
-    phoneNumber: string;
-    password?: string;
-    uid?: string;
-  };
+  tempSignupData?: TempSignupData | null;
 }
 
 const initialState: AuthState = {
   user: null,
-  userEmail: null, // ✅ INITIALIZED
+  userEmail: null,
   isLoading: false,
   error: null,
   isAuthenticated: false,
-  tempSignupData: undefined,
+  tempSignupData: null,
 };
 
 const authSlice = createSlice({
@@ -49,11 +51,10 @@ const authSlice = createSlice({
 
     setUser: (state, action: PayloadAction<User>) => {
       state.user = action.payload;
-      state.userEmail = action.payload.email; // ✅ SAVE EMAIL
+      state.userEmail = action.payload.email;
       state.isAuthenticated = true;
       state.error = null;
 
-      // Persist to localStorage
       if (typeof window !== 'undefined') {
         localStorage.setItem('user', JSON.stringify(action.payload));
       }
@@ -61,10 +62,10 @@ const authSlice = createSlice({
 
     logout: (state) => {
       state.user = null;
-      state.userEmail = null; // ✅ CLEAR EMAIL
+      state.userEmail = null;
       state.isAuthenticated = false;
       state.error = null;
-      state.tempSignupData = undefined;
+      state.tempSignupData = null;
 
       if (typeof window !== 'undefined') {
         localStorage.removeItem('user');
@@ -72,17 +73,19 @@ const authSlice = createSlice({
       }
     },
 
-    setTempSignupData: (
-      state,
-      action: PayloadAction<AuthState['tempSignupData']>
-    ) => {
+    setTempSignupData: (state, action: PayloadAction<TempSignupData>) => {
       state.tempSignupData = action.payload;
 
       if (typeof window !== 'undefined' && action.payload) {
-        localStorage.setItem(
-          'tempSignupData',
-          JSON.stringify(action.payload)
-        );
+        localStorage.setItem('tempSignupData', JSON.stringify(action.payload));
+      }
+    },
+
+    clearTempSignupData: (state) => {
+      state.tempSignupData = null;
+
+      if (typeof window !== 'undefined') {
+        localStorage.removeItem('tempSignupData');
       }
     },
 
@@ -94,12 +97,21 @@ const authSlice = createSlice({
           try {
             const parsedUser: User = JSON.parse(storedUser);
             state.user = parsedUser;
-            state.userEmail = parsedUser.email; // ✅ RESTORE EMAIL
+            state.userEmail = parsedUser.email;
             state.isAuthenticated = true;
           } catch (e) {
             state.user = null;
             state.userEmail = null;
             state.isAuthenticated = false;
+          }
+        }
+
+        const storedTempData = localStorage.getItem('tempSignupData');
+        if (storedTempData) {
+          try {
+            state.tempSignupData = JSON.parse(storedTempData);
+          } catch {
+            state.tempSignupData = null;
           }
         }
       }
@@ -114,6 +126,7 @@ export const {
   logout,
   setTempSignupData,
   initializeAuth,
+  clearTempSignupData,
 } = authSlice.actions;
 
 export default authSlice.reducer;

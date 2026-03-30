@@ -6,17 +6,20 @@ import { usePathname, useRouter } from "next/navigation";
 import { useSelector, useDispatch } from "react-redux";
 import { motion, AnimatePresence } from "framer-motion";
 import {
-  Menu,
-  X,
-  BarChart3,
-  TrendingUp,
-  Brain,
-  Shield,
-  BookOpen,
-  Calendar,
-  Target,
-  Settings,
-  LogOut,
+  BarChart3, // Dashboard
+  BookOpen, // Trade Journal & Trading Plan
+  TrendingUp, // Analytics
+  Brain, // AI Coach
+  Shield, // Risk Management
+  Calendar, // Calendar
+  CreditCard, // Payment History
+  Bell, // Notifications
+  ArrowUp, // Upgrade
+  LifeBuoy, // Support
+  Menu, // Hamburger Menu
+  X, // Close icon
+  Crown, // Settings icon
+  LogOut, // Logout icon
 } from "lucide-react";
 import { logout } from "@/store/authSlice";
 import { supabase } from "@/lib/supabaseClient";
@@ -31,10 +34,21 @@ const navItems = [
   { label: "Trade Journal", href: "/dashboard/trades", icon: BookOpen },
   { label: "Analytics", href: "/dashboard/analytics", icon: TrendingUp },
   { label: "AI Coach", href: "/dashboard/ai-coach", icon: Brain },
-  { label: "Risk Management", href: "/dashboard/risk-management", icon: Shield },
+  {
+    label: "Risk Management",
+    href: "/dashboard/risk-management",
+    icon: Shield,
+  },
   { label: "Trading Plan", href: "/dashboard/trading-plan", icon: BookOpen },
   { label: "Calendar", href: "/dashboard/calendar", icon: Calendar },
-  { label: "Goals", href: "/dashboard/goals", icon: Target },
+  {
+    label: "Payment History",
+    href: "/dashboard/payment-history",
+    icon: CreditCard,
+  },
+  { label: "Notifications", href: "/dashboard/notifications", icon: Bell },
+  { label: "Upgrade", href: "/dashboard/upgrade", icon: ArrowUp },
+  { label: "Support", href: "/dashboard/support", icon: LifeBuoy },
 ];
 
 type User = {
@@ -50,10 +64,10 @@ type User = {
   last_updated_at: string;
 };
 
-
 export function Navigation() {
   const [isOpen, setIsOpen] = useState(false);
   const [isSettingsOpen, setIsSettingsOpen] = useState(false);
+  const [unreadCount, setUnreadCount] = useState(0);
   const pathname = usePathname();
   const router = useRouter();
   const dispatch = useDispatch();
@@ -78,7 +92,6 @@ export function Navigation() {
         .eq("email", userEmail)
         .single();
 
-
       setUserData(data);
     };
 
@@ -87,29 +100,50 @@ export function Navigation() {
 
   // Countdown timer effect
   useEffect(() => {
-  if (!userData?.time_period_end) return;
+    if (!userData?.time_period_end) return;
 
-  const interval = setInterval(() => {
-    const now = new Date().getTime();
-    const end = new Date(userData.time_period_end).getTime();
-    const diff = end - now;
+    const interval = setInterval(() => {
+      const now = new Date().getTime();
+      const end = new Date(userData.time_period_end).getTime();
+      const diff = end - now;
 
-    if (diff <= 0) {
-      setCountdown("Expired");
-      clearInterval(interval);
-      return;
+      if (diff <= 0) {
+        setCountdown("Expired");
+        clearInterval(interval);
+        return;
+      }
+
+      const days = Math.floor(diff / (1000 * 60 * 60 * 24));
+      const hours = Math.floor(
+        (diff % (1000 * 60 * 60 * 24)) / (1000 * 60 * 60),
+      );
+      const minutes = Math.floor((diff % (1000 * 60 * 60)) / (1000 * 60));
+      const seconds = Math.floor((diff % (1000 * 60)) / 1000);
+
+      setCountdown(`${days}d ${hours}h ${minutes}m ${seconds}s`);
+    }, 1000);
+
+    return () => clearInterval(interval);
+  }, [userData?.time_period_end]);
+
+
+  useEffect(() => {
+  if (!userEmail) return;
+
+  const fetchUnreadNotifications = async () => {
+    const { count, error } = await supabase
+      .from("notifications")
+      .select("*", { count: "exact", head: true }) 
+      .eq("email", userEmail)
+      .eq("status", "pending"); // 
+
+    if (!error) {
+      setUnreadCount(count || 0);
     }
+  };
 
-    const days = Math.floor(diff / (1000 * 60 * 60 * 24));
-    const hours = Math.floor((diff % (1000 * 60 * 60 * 24)) / (1000 * 60 * 60));
-    const minutes = Math.floor((diff % (1000 * 60 * 60)) / (1000 * 60));
-    const seconds = Math.floor((diff % (1000 * 60)) / 1000);
-
-    setCountdown(`${days}d ${hours}h ${minutes}m ${seconds}s`);
-  }, 1000);
-
-  return () => clearInterval(interval);
-}, [userData?.time_period_end]);
+  fetchUnreadNotifications();
+}, [userEmail]);
 
   // Format date helper
   const formatDate = (date?: string | Date | null) => {
@@ -185,7 +219,16 @@ export function Navigation() {
                   `}
                 >
                   <Icon size={20} />
-                  <span className="font-medium">{item.label}</span>
+                  <div className="flex items-center justify-between w-full">
+  <span className="font-medium">{item.label}</span>
+
+  {/* Notification Badge */}
+  {item.label === "Notifications" && unreadCount > 0 && (
+    <span className="ml-2 text-xs font-bold bg-red-500 text-white px-2 py-0.5 rounded-full">
+      {unreadCount}
+    </span>
+  )}
+</div>
                 </Link>
               );
             })}
@@ -194,13 +237,46 @@ export function Navigation() {
 
         {/* Footer */}
         <div className="absolute bottom-0 left-0 right-0 border-t border-sidebar-border bg-sidebar p-4">
-          <button
+          <div
             onClick={() => setIsSettingsOpen(true)}
-            className="flex w-full items-center gap-3 rounded-lg px-4 py-3 text-sidebar-foreground transition-all duration-300 hover:bg-sidebar-accent/10"
+            className="cursor-pointer rounded-lg px-4 py-3 hover:bg-sidebar-accent/10 transition-all duration-300"
           >
-            <Settings size={20} />
-            <span className="font-medium">Settings</span>
-          </button>
+            {/* Top Row */}
+            <div className="flex items-center justify-between">
+              <span className="text-white font-semibold">
+                {userData?.username || "User"}
+              </span>
+
+              {/* Badge */}
+              <span
+                className={`flex items-center gap-1 text-xs font-bold px-2 py-1 rounded-full ${
+                  userData?.user_type === "pro"
+                    ? "bg-yellow-500/20 text-yellow-400"
+                    : "bg-gray-500/20 text-gray-400"
+                }`}
+              >
+                {userData?.user_type === "pro" && <Crown size={12} />}
+                {userData?.user_type === "pro" ? "PRO" : "FREE"}
+              </span>
+            </div>
+
+            {/* Countdown Section */}
+            {countdown && (
+              <div className="mt-2 text-xs flex items-center gap-1">
+                {/* Label */}
+                <span className="text-gray-400 font-medium">Time Left:</span>
+
+                {/* Countdown Value */}
+                <span
+                  className={`font-semibold ${
+                    countdown === "Expired" ? "text-red-400" : "text-blue-400"
+                  }`}
+                >
+                  {countdown === "Expired" ? "Expired" : countdown}
+                </span>
+              </div>
+            )}
+          </div>
         </div>
       </aside>
 
@@ -294,7 +370,18 @@ export function Navigation() {
                     <span className="text-sm text-gray-400 font-medium">
                       User Type
                     </span>
-                    <span className="text-white font-semibold capitalize">
+
+                    <span
+                      className={`flex items-center gap-1 font-semibold capitalize ${
+                        userData?.user_type === "pro"
+                          ? "text-green-400"
+                          : "text-white"
+                      }`}
+                    >
+                      {userData?.user_type === "pro" && (
+                        <Crown size={14} className="text-yellow-400" />
+                      )}
+
                       {userData?.user_type || "N/A"}
                     </span>
                   </div>

@@ -2,7 +2,7 @@
 
 import React, { useState, useEffect } from 'react';
 import { useRouter } from 'next/navigation';
-import { useDispatch } from 'react-redux';
+import { useDispatch, useSelector } from 'react-redux';
 import { motion } from 'framer-motion';
 import Link from 'next/link';
 import { AuthLayout } from '@/components/auth/AuthLayout';
@@ -17,9 +17,14 @@ import {
   validatePhoneNumber,
 } from '@/lib/validation';
 import { signUpUser } from '@/lib/authService';
-import { sendOtpToEmail, verifyOtpFirestore } from '@/lib/otpService'; 
+import { sendOtpToEmail } from '@/lib/otpService'; 
+import { FirebaseError } from 'firebase/app';
+import {AlreadySignedInModal} from '@/components/AlreadySignedIn';
+import { selectUserEmail } from '@/store/UserLoggedInSlice';
 
 export default function SignupPage() {
+     const loggedInUserEmail = useSelector(selectUserEmail);
+      const [showAlreadySignedInModal, setShowAlreadySignedInModal] = useState(false);
   const router = useRouter();
   const dispatch = useDispatch<AppDispatch>();
 
@@ -36,10 +41,8 @@ export default function SignupPage() {
   const [loginAttempts, setLoginAttempts] = useState(0);
   const [isRateLimited, setIsRateLimited] = useState(false);
 
-  const MAX_ATTEMPTS = 5;
-  const RATE_LIMIT_DURATION = 15 * 60 * 1000; // 15 minutes
 
-  useEffect(() => {
+   useEffect(() => {
     const rateLimitedUntil = localStorage.getItem('signupRateLimitedUntil');
     if (rateLimitedUntil && new Date().getTime() < parseInt(rateLimitedUntil)) {
       setIsRateLimited(true);
@@ -48,6 +51,12 @@ export default function SignupPage() {
       localStorage.removeItem('signupRateLimitedUntil');
     }
   }, []);
+
+  useEffect(() => {
+    if (loggedInUserEmail) {
+      setShowAlreadySignedInModal(true);
+    }
+  }, [loggedInUserEmail]);
 
   const handleChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     const { name, value } = e.target;
@@ -115,44 +124,126 @@ export default function SignupPage() {
     return Object.keys(newErrors).length === 0;
   };
 
-const handleSubmit = async (e: React.FormEvent) => {
-    e.preventDefault();
+const getFirebaseErrorMessage = (raw: string): string => {
+  // Extract the code inside parentheses
+  const match = raw.match(/\(([^)]+)\)/);
+  const code = match ? match[1] : raw;
 
-    if (!validateForm()) return;
+  switch (code) {
+    case 'auth/email-already-in-use':
+      return 'This email is already registered.';
 
-    setIsLoadingState(true);
-    dispatch(setLoading(true));
+    case 'auth/invalid-email':
+      return 'Please enter a valid email address.';
 
-    try {
-      // Save temp signup data in Redux for VerifyEmailPage
-      dispatch(
-        setTempSignupData({
-          username: formData.username,
-          email: formData.email,
-          phoneNumber: formData.phoneNumber,
-          password: formData.password,
-        })
-      );
+    case 'auth/operation-not-allowed':
+      return 'Email/password signup is not enabled.';
 
-      // Send OTP email
-      await sendOtpToEmail(formData.email);
+    case 'auth/weak-password':
+      return 'Password is too weak. Use at least 8 characters.';
 
-      // Redirect to Verify Email page
-      router.push('/verify-email');
+    case 'auth/too-many-requests':
+      return 'Too many attempts. Please try again later.';
+
+    case 'auth/network-request-failed':
+      return 'Network error. Please check your internet connection.';
+
+    default:
+      return 'Failed to send OTP. Please try again.';
+  }
+};
+
+const handleSubmit = async (e: React.FormEvent<HTMLFormElement>) => {
+  e.preventDefault();
+
+  if (!validateForm()) return;
+
+  setIsLoadingState(true);
+  dispatch(setLoading(true));
+  setErrors({});
+
+  try {
+    // ✅ Save temp signup data in Redux (no actual account creation yet)
+    dispatch(
+      setTempSignupData({
+        username: formData.username,
+        email: formData.email,
+        phoneNumber: formData.phoneNumber,
+        password: formData.password,
+      })
+    );
+
+    // ✅ Send OTP to email
+    await sendOtpToEmail(formData.email);
+
+    router.push('/verify-email'); // Go to OTP page
+  } catch (error: unknown) {
+    if (error instanceof FirebaseError) {
+      setErrors({
+        form: `Firebase Error: ${error.code}`,
+      });
+    } else if (error instanceof Error) {
+      setErrors({ form: error.message });
+    } else {
+      setErrors({ form: 'Failed to send OTP. Please try again.' });
     }
-      catch (err: unknown) {
-      if (err instanceof Error) {
-        setError(err.message);
-      } else {
-        setErrors({ form: "Failed to send OTP. Try again." });
-      }
-    } finally {
-      setIsLoadingState(false);
-      dispatch(setLoading(false));
-    }
-  };
+  } finally {
+    setIsLoadingState(false);
+    dispatch(setLoading(false));
+  }
+};
 
+// const handleSubmit = async (e: React.FormEvent<HTMLFormElement>) => {
+//   e.preventDefault();
+
+//   if (!validateForm()) return;
+
+//   setIsLoadingState(true);
+//   dispatch(setLoading(true));
+
+//   try {
+//     // Save temp signup data for OTP verification
+//     dispatch(
+//       setTempSignupData({
+//         username: formData.username,
+//         email: formData.email,
+//         phoneNumber: formData.phoneNumber,
+//         password: formData.password,
+//       })
+//     );
+
+//     // Send OTP to user's email
+//     await sendOtpToEmail(formData.email);
+
+//     router.push('/verify-email');
+//   } catch (error: unknown) {
+//     if (error instanceof FirebaseError) {
+//       console.log('FirebaseError caught:', error.code);
+//       setErrors({
+//         form: getFirebaseErrorMessage(`Firebase: Error (${error.code})`),
+//       });
+//     } else if (error instanceof Error) {
+//       console.log('Generic error caught:', error.message);
+//       setErrors({
+//         form: error.message,
+//       });
+//     } else {
+//       console.log('Unknown error caught:', error);
+//       setErrors({
+//         form: 'Failed to send OTP. Please try again.',
+//       });
+//     }
+//   } finally {
+//     setIsLoadingState(false);
+//     dispatch(setLoading(false));
+//   }
+// };
   return (
+<>
+    <AlreadySignedInModal
+    isOpen={showAlreadySignedInModal}
+
+  />
     <AuthLayout
       title="Create Account"
       subtitle="Join Stark Trading Journal today"
@@ -237,5 +328,6 @@ const handleSubmit = async (e: React.FormEvent) => {
         </p>
       </form>
     </AuthLayout>
+    </>
   );
 }

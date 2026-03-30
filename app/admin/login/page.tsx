@@ -5,8 +5,8 @@ import { useRouter } from 'next/navigation';
 import { motion } from 'framer-motion';
 import { Lock } from 'lucide-react';
 
-const ADMIN_USERNAME = 'admin';
-const ADMIN_PASSWORD = 'admin123';
+const ADMIN_USERNAME = process.env.NEXT_PUBLIC_ADMIN_USERNAME
+const ADMIN_PASSWORD = process.env.NEXT_PUBLIC_ADMIN_PASSWORD
 
 export default function AdminLoginPage() {
   const router = useRouter();
@@ -130,10 +130,7 @@ export default function AdminLoginPage() {
           </motion.button>
         </form>
 
-        {/* Demo Credentials Hint */}
-        <p className="text-xs text-muted-foreground text-center mt-6">
-          Demo: admin / admin123
-        </p>
+     
       </motion.div>
     </div>
   );

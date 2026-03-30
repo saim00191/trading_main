@@ -51,7 +51,7 @@ export default function CalendarPage() {
     const map = new Map<string, { trades: Trade[]; pnl: number; wins: number; losses: number }>();
 
     trades.forEach((trade) => {
-      const tradeDate = new Date(trade.opened_at);
+      const tradeDate = new Date(trade.opened_at || Date.now());
       const dateKey = `${tradeDate.getFullYear()}-${tradeDate.getMonth()}-${tradeDate.getDate()}`;
 
       if (!map.has(dateKey)) {

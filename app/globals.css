@@ -275,3 +275,35 @@
     backdrop-filter: blur(4px);
   }
 }
+
+
+
+/* ============================= */
+/* GLOBAL SCROLLBAR (DARK UI)   */
+/* ============================= */
+
+/* Chrome, Edge, Safari */
+::-webkit-scrollbar {
+  width: 6px;   /* 👈 thin scrollbar */
+  height: 6px;
+}
+
+::-webkit-scrollbar-track {
+  background: #0b0f19; /* dark background matching your UI */
+}
+
+::-webkit-scrollbar-thumb {
+  background: linear-gradient(180deg, #2563eb, #1d4ed8);
+  border-radius: 10px;
+  border: 1px solid rgba(255, 255, 255, 0.05);
+}
+
+::-webkit-scrollbar-thumb:hover {
+  background: linear-gradient(180deg, #3b82f6, #2563eb);
+}
+
+/* Firefox */
+* {
+  scrollbar-width: thin;
+  scrollbar-color: #2563eb #0b0f19;
+}

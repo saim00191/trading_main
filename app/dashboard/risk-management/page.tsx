@@ -3,10 +3,8 @@
 import React, { useState } from 'react';
 import { DashboardLayout } from '@/components/common/DashboardLayout';
 import { ChartContainer } from '@/components/common/ChartContainer';
-import { MetricCard } from '@/components/common/MetricCard';
 import { AnimatedButton } from '@/components/common/AnimatedButton';
-import { Modal } from '@/components/common/Modal';
-import { AlertCircle, Calculator, Target, TrendingDown } from 'lucide-react';
+
 
 
 type RiskCalcResult = {
@@ -63,38 +61,7 @@ const handlePosCalc = (e: React.FormEvent<HTMLFormElement>) => {
   return (
     <DashboardLayout title="Risk Management" subtitle="Manage and monitor your trading risk">
       {/* Key Metrics */}
-      <section className="mb-8">
-        <h2 className="mb-4 text-xl font-bold text-foreground">Risk Summary</h2>
-
-        <div className="grid grid-cols-1 gap-4 md:grid-cols-2 lg:grid-cols-4">
-          <MetricCard
-            label="Daily Loss Limit"
-            value="$500"
-            color="info"
-            icon={<Target size={20} />}
-          />
-          <MetricCard
-            label="Current Daily Loss"
-            value="$120"
-            change={-10}
-            color="success"
-            icon={<TrendingDown size={20} />}
-          />
-          <MetricCard
-            label="Max Drawdown Limit"
-            value="10%"
-            color="warning"
-            icon={<AlertCircle size={20} />}
-          />
-          <MetricCard
-            label="Current Drawdown"
-            value="3.2%"
-            color="success"
-            icon={<TrendingDown size={20} />}
-          />
-        </div>
-      </section>
-
+  
       {/* Calculators */}
       <section className="mb-8 grid grid-cols-1 gap-6 lg:grid-cols-2">
         {/* Risk Calculator */}
@@ -125,9 +92,13 @@ const handlePosCalc = (e: React.FormEvent<HTMLFormElement>) => {
                 />
               </div>
 
-              <AnimatedButton type="submit" variant="primary" className="w-full">
-                Calculate Risk Amount
-              </AnimatedButton>
+             <AnimatedButton
+  type="submit"
+  variant="primary"
+  className="w-full hover:scale-100 active:scale-100 transition-none overflow-hidden"
+>
+  Calculate Risk Amount
+</AnimatedButton>
             </form>
 
             {riskCalcResult && (
@@ -192,7 +163,7 @@ const handlePosCalc = (e: React.FormEvent<HTMLFormElement>) => {
                 />
               </div>
 
-              <AnimatedButton type="submit" variant="primary" className="w-full">
+              <AnimatedButton type="submit" variant="primary" className="w-full hover:scale-100 active:scale-100 transition-none">
                 Calculate Position Size
               </AnimatedButton>
             </form>
@@ -225,7 +196,7 @@ const handlePosCalc = (e: React.FormEvent<HTMLFormElement>) => {
       </section>
 
       {/* Risk Limits */}
-      <section className="mb-8 grid grid-cols-1 gap-6 lg:grid-cols-2">
+      {/* <section className="mb-8 grid grid-cols-1 gap-6 lg:grid-cols-2">
         <ChartContainer title="Daily Loss Limit Tracker" description="Monitor your daily loss against your limit">
           <div className="space-y-4">
             <div>
@@ -293,10 +264,10 @@ const handlePosCalc = (e: React.FormEvent<HTMLFormElement>) => {
             </div>
           </div>
         </ChartContainer>
-      </section>
+      </section> */}
 
       {/* Rule Violations */}
-      <section>
+      {/* <section>
         <ChartContainer title="Rule Violation Tracker" description="Monitor compliance with your trading rules">
           <div className="space-y-3">
             <div className="flex items-center justify-between rounded-lg border border-success/20 bg-success/5 p-4">
@@ -332,7 +303,7 @@ const handlePosCalc = (e: React.FormEvent<HTMLFormElement>) => {
             </div>
           </div>
         </ChartContainer>
-      </section>
+      </section> */}
     </DashboardLayout>
   );
 }

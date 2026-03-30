@@ -1,48 +1,86 @@
 'use client';
 
-import React from 'react';
+import React, { useEffect, useState } from 'react';
 import { DashboardLayout } from '@/components/common/DashboardLayout';
 import { ChartContainer } from '@/components/common/ChartContainer';
 import { AlertCircle, Lightbulb, TrendingUp, Zap, BarChart3 } from 'lucide-react';
-import { mockTrades, mockAnalyticsData } from '@/lib/mock-data';
+import { supabase } from "@/lib/supabaseClient";
+import { generateAiCoachAnalytics, AnalyticsData, mapTradesToTradeData } from './AI_Coach_Engine';
+import { selectUserEmail } from '@/store/UserLoggedInSlice';
+import { useSelector } from 'react-redux';
+import { getTradesByUser } from '@/lib/trade_services';
+
 
 export default function AiCoachPage() {
-  const recentTrades = mockTrades.slice(0, 5);
-  const analytics = mockAnalyticsData;
+  const userEmail = useSelector(selectUserEmail);
+  const [analytics, setAnalytics] = useState<AnalyticsData | null>(null);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
 
-  // Calculate some metrics for insights
-  const losingStreak = mockTrades.filter((t) => t.pnl < 0).length > 3 ? 4 : 0;
-  const avgRiskPercent = mockTrades.reduce((sum, t) => sum + t.riskPercent, 0) / mockTrades.length;
-  const overtradingThreshold = 5;
-  const tradesThisWeek = mockTrades.length;
+ useEffect(() => {
+  const fetchAnalytics = async () => {
+    try {
+      if (!userEmail) {
+        setError('User not logged in');
+        setLoading(false);
+        return;
+      }
 
-  const insights = [
-    {
-      type: 'positive',
-      title: 'Strong Win Rate',
-      description: 'Your win rate has improved by 3.2% this week. Keep maintaining your current strategy and risk management.',
-      icon: TrendingUp,
-    },
-    {
-      type: 'warning',
-      title: 'Overtrading Alert',
-      description: `You've taken ${tradesThisWeek} trades this week. Consider scaling back to maintain quality over quantity.`,
-      icon: AlertCircle,
-      show: tradesThisWeek > overtradingThreshold,
-    },
-    {
-      type: 'positive',
-      title: 'Risk Management',
-      description: `Your average risk per trade is ${avgRiskPercent.toFixed(2)}%. This is within optimal parameters.`,
-      icon: Zap,
-    },
-    {
-      type: 'recommendation',
-      title: 'Strategy Optimization',
-      description: 'The MA Crossover strategy has shown the best performance. Consider allocating more capital to this approach.',
-      icon: Lightbulb,
-    },
-  ].filter((i) => i.show !== false);
+      // 1. Fetch raw trades (Trade[])
+      const rawTrades = await getTradesByUser(userEmail);
+
+      // 2. Convert to TradeData[]
+      const trades = mapTradesToTradeData(rawTrades);
+
+      // 3. Generate analytics
+      const analyticsData = await generateAiCoachAnalytics(trades);
+
+      setAnalytics(analyticsData);
+    } catch (err) {
+      console.error('[v0] Error in fetchAnalytics:', err);
+      setError('An error occurred while loading AI analytics');
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  fetchAnalytics();
+}, [userEmail]); // ✅ important
+
+
+  if (loading) {
+    return (
+      <DashboardLayout title="AI Coach" subtitle="Personalized trading insights and recommendations">
+        <div className="flex items-center justify-center min-h-[60vh]">
+          <div className="text-center">
+            <div className="w-12 h-12 border-4 border-primary/20 border-t-primary rounded-full animate-spin mx-auto mb-4" />
+            <p className="text-muted-foreground">Loading AI analysis...</p>
+          </div>
+        </div>
+      </DashboardLayout>
+    );
+  }
+
+  if (error) {
+    return (
+      <DashboardLayout title="AI Coach" subtitle="Personalized trading insights and recommendations">
+        <div className="flex items-center justify-center min-h-[60vh]">
+          <div className="text-center">
+            <p className="text-red-400 mb-2">{error}</p>
+            <p className="text-muted-foreground text-sm">Please check your Supabase connection</p>
+          </div>
+        </div>
+      </DashboardLayout>
+    );
+  }
+
+  if (!analytics) {
+    return (
+      <DashboardLayout title="AI Coach" subtitle="Personalized trading insights and recommendations">
+        <p className="text-muted-foreground">No analytics data available</p>
+      </DashboardLayout>
+    );
+  }
 
   const colorMap = {
     positive: 'border-success/30 bg-success/5',
@@ -59,12 +97,11 @@ export default function AiCoachPage() {
   return (
     <DashboardLayout title="AI Coach" subtitle="Personalized trading insights and recommendations">
       {/* Key Insights */}
-      <section className="mb-8">
-        <h2 className="mb-4 text-xl font-bold text-foreground">AI Insights</h2>
-
+      <section className="mb-2">
+        
         <div className="space-y-4">
-          {insights.map((insight, index) => {
-            const Icon = insight.icon;
+          {analytics.insights.map((insight, index) => {
+            const Icon = insight.type === 'positive' ? TrendingUp : insight.type === 'warning' ? AlertCircle : Lightbulb;
             return (
               <div
                 key={index}
@@ -96,7 +133,7 @@ export default function AiCoachPage() {
                 <p className="text-sm font-medium text-foreground">Best Trading Session</p>
                 <p className="text-xs text-muted-foreground">When you perform best</p>
               </div>
-              <span className="font-semibold text-primary">Europe Session</span>
+              <span className="font-semibold text-primary">{analytics.behaviorPatterns.bestSession}</span>
             </div>
 
             <div className="flex items-center justify-between rounded-lg bg-muted/10 p-4">
@@ -104,7 +141,7 @@ export default function AiCoachPage() {
                 <p className="text-sm font-medium text-foreground">Preferred Trade Type</p>
                 <p className="text-xs text-muted-foreground">Most frequent setup</p>
               </div>
-              <span className="font-semibold text-primary">Day Trading</span>
+              <span className="font-semibold text-primary">{analytics.behaviorPatterns.preferredTradeType}</span>
             </div>
 
             <div className="flex items-center justify-between rounded-lg bg-muted/10 p-4">
@@ -112,7 +149,7 @@ export default function AiCoachPage() {
                 <p className="text-sm font-medium text-foreground">Emotional Control</p>
                 <p className="text-xs text-muted-foreground">Emotional stability index</p>
               </div>
-              <span className="font-semibold text-success">7.2/10</span>
+              <span className="font-semibold text-success">{analytics.behaviorPatterns.emotionalControl}/100</span>
             </div>
 
             <div className="flex items-center justify-between rounded-lg bg-muted/10 p-4">
@@ -120,32 +157,38 @@ export default function AiCoachPage() {
                 <p className="text-sm font-medium text-foreground">Consistency Score</p>
                 <p className="text-xs text-muted-foreground">Trade adherence to plan</p>
               </div>
-              <span className="font-semibold text-success">8.5/10</span>
+              <span className="font-semibold text-success">{analytics.behaviorPatterns.consistencyScore}/100</span>
             </div>
           </div>
         </ChartContainer>
 
         <ChartContainer title="Risk Violation Detection" description="Compliance with your trading rules">
           <div className="space-y-3">
-            <div className="flex items-center justify-between rounded-lg border border-success/20 bg-success/5 p-4">
-              <span className="font-medium text-foreground">Daily Loss Limit Rule</span>
-              <span className="rounded-full bg-success/20 px-3 py-1 text-xs font-semibold text-success">PASSED</span>
-            </div>
-
-            <div className="flex items-center justify-between rounded-lg border border-success/20 bg-success/5 p-4">
-              <span className="font-medium text-foreground">Max 2% Risk Per Trade</span>
-              <span className="rounded-full bg-success/20 px-3 py-1 text-xs font-semibold text-success">PASSED</span>
-            </div>
-
-            <div className="flex items-center justify-between rounded-lg border border-warning/20 bg-warning/5 p-4">
-              <span className="font-medium text-foreground">No Revenge Trading</span>
-              <span className="rounded-full bg-warning/20 px-3 py-1 text-xs font-semibold text-warning">CAUTION</span>
-            </div>
-
-            <div className="flex items-center justify-between rounded-lg border border-success/20 bg-success/5 p-4">
-              <span className="font-medium text-foreground">Position Sizing</span>
-              <span className="rounded-full bg-success/20 px-3 py-1 text-xs font-semibold text-success">PASSED</span>
-            </div>
+            {analytics.riskViolations.map((violation, index) => (
+              <div
+                key={index}
+                className={`flex items-center justify-between rounded-lg border p-4 ${
+                  violation.status === 'PASSED'
+                    ? 'border-success/20 bg-success/5'
+                    : violation.status === 'CAUTION'
+                    ? 'border-warning/20 bg-warning/5'
+                    : 'border-destructive/20 bg-destructive/5'
+                }`}
+              >
+                <span className="font-medium text-foreground">{violation.rule}</span>
+                <span
+                  className={`rounded-full px-3 py-1 text-xs font-semibold ${
+                    violation.status === 'PASSED'
+                      ? 'bg-success/20 text-success'
+                      : violation.status === 'CAUTION'
+                      ? 'bg-warning/20 text-warning'
+                      : 'bg-destructive/20 text-destructive'
+                  }`}
+                >
+                  {violation.status}
+                </span>
+              </div>
+            ))}
           </div>
         </ChartContainer>
       </section>
@@ -154,45 +197,15 @@ export default function AiCoachPage() {
       <section className="mb-8">
         <ChartContainer title="Personalized Recommendations" description="AI-generated suggestions for improvement">
           <div className="space-y-3">
-            <div className="flex gap-3 rounded-lg border border-primary/20 bg-primary/5 p-4">
-              <Lightbulb className="mt-0.5 flex-shrink-0 text-primary" size={20} />
-              <div>
-                <p className="font-medium text-foreground">Increase Position Size by 10-15%</p>
-                <p className="mt-1 text-sm text-muted-foreground">
-                  Your recent trading consistency has improved. Consider scaling up your position size to capitalize on your improved performance.
-                </p>
+            {analytics.recommendations.map((rec, index) => (
+              <div key={index} className={`flex gap-3 rounded-lg border p-4 ${colorMap[rec.type]}`}>
+                <Lightbulb className="mt-0.5 flex-shrink-0 text-primary" size={20} />
+                <div>
+                  <p className="font-medium text-foreground">{rec.title}</p>
+                  <p className="mt-1 text-sm text-muted-foreground">{rec.description}</p>
+                </div>
               </div>
-            </div>
-
-            <div className="flex gap-3 rounded-lg border border-primary/20 bg-primary/5 p-4">
-              <Lightbulb className="mt-0.5 flex-shrink-0 text-primary" size={20} />
-              <div>
-                <p className="font-medium text-foreground">Focus on EUR/USD Pair</p>
-                <p className="mt-1 text-sm text-muted-foreground">
-                  EUR/USD has shown the best risk-reward ratio for your trading style. Consider allocating more capital to this pair.
-                </p>
-              </div>
-            </div>
-
-            <div className="flex gap-3 rounded-lg border border-primary/20 bg-primary/5 p-4">
-              <Lightbulb className="mt-0.5 flex-shrink-0 text-primary" size={20} />
-              <div>
-                <p className="font-medium text-foreground">Trade Only During Europe Session</p>
-                <p className="mt-1 text-sm text-muted-foreground">
-                  Your statistics show 65% higher profitability during the Europe session. Limit trading to this window for better results.
-                </p>
-              </div>
-            </div>
-
-            <div className="flex gap-3 rounded-lg border border-warning/20 bg-warning/5 p-4">
-              <AlertCircle className="mt-0.5 flex-shrink-0 text-warning" size={20} />
-              <div>
-                <p className="font-medium text-foreground">Reduce Revenge Trading</p>
-                <p className="mt-1 text-sm text-muted-foreground">
-                  3 revenge trades detected this month. Implement a 30-minute cooling period after losses to prevent emotional decisions.
-                </p>
-              </div>
-            </div>
+            ))}
           </div>
         </ChartContainer>
       </section>
@@ -201,45 +214,20 @@ export default function AiCoachPage() {
       <section>
         <ChartContainer title="Trading Psychology Analysis" description="Emotional patterns and psychological insights">
           <div className="space-y-4">
-            <div>
-              <div className="mb-2 flex items-center justify-between">
-                <span className="text-sm font-medium text-foreground">Emotional Stability</span>
-                <span className="text-sm font-semibold text-primary">72%</span>
+            {analytics.psychologyAnalysis.map((metric, index) => (
+              <div key={index}>
+                <div className="mb-2 flex items-center justify-between">
+                  <span className="text-sm font-medium text-foreground">{metric.label}</span>
+                  <span className="text-sm font-semibold text-primary">{metric.value}%</span>
+                </div>
+                <div className="h-2 overflow-hidden rounded-full bg-muted">
+                  <div
+                    className="h-full bg-gradient-to-r from-primary to-success"
+                    style={{ width: `${metric.value}%` }}
+                  />
+                </div>
               </div>
-              <div className="h-2 overflow-hidden rounded-full bg-muted">
-                <div className="h-full w-[72%] bg-gradient-to-r from-primary to-success" />
-              </div>
-            </div>
-
-            <div>
-              <div className="mb-2 flex items-center justify-between">
-                <span className="text-sm font-medium text-foreground">Discipline Score</span>
-                <span className="text-sm font-semibold text-primary">85%</span>
-              </div>
-              <div className="h-2 overflow-hidden rounded-full bg-muted">
-                <div className="h-full w-[85%] bg-gradient-to-r from-primary to-success" />
-              </div>
-            </div>
-
-            <div>
-              <div className="mb-2 flex items-center justify-between">
-                <span className="text-sm font-medium text-foreground">Confidence Level</span>
-                <span className="text-sm font-semibold text-primary">78%</span>
-              </div>
-              <div className="h-2 overflow-hidden rounded-full bg-muted">
-                <div className="h-full w-[78%] bg-gradient-to-r from-primary to-success" />
-              </div>
-            </div>
-
-            <div>
-              <div className="mb-2 flex items-center justify-between">
-                <span className="text-sm font-medium text-foreground">Risk Awareness</span>
-                <span className="text-sm font-semibold text-primary">92%</span>
-              </div>
-              <div className="h-2 overflow-hidden rounded-full bg-muted">
-                <div className="h-full w-[92%] bg-gradient-to-r from-primary to-success" />
-              </div>
-            </div>
+            ))}
           </div>
         </ChartContainer>
       </section>

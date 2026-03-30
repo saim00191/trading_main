@@ -15,22 +15,21 @@ export const calculatePnL = (trade: {
 }): { pnl: number; pnl_percent: number } => {
   const { side, entry, exit_price, position_size } = trade;
 
+  let pnl: number;
   if (side === 'BUY') {
-    const pnl = (exit_price - entry) * position_size;
-    const pnl_percent = ((exit_price - entry) / entry) * 100;
-    return {
-      pnl: parseFloat(pnl.toFixed(2)),
-      pnl_percent: parseFloat(pnl_percent.toFixed(2)),
-    };
+    pnl = (exit_price - entry) * position_size;
   } else {
     // SELL
-    const pnl = (entry - exit_price) * position_size;
-    const pnl_percent = ((entry - exit_price) / entry) * 100;
-    return {
-      pnl: parseFloat(pnl.toFixed(2)),
-      pnl_percent: parseFloat(pnl_percent.toFixed(2)),
-    };
+    pnl = (entry - exit_price) * position_size;
   }
+
+  // PnL % based on position value
+  const pnl_percent = (pnl / (entry * position_size)) * 100;
+
+  return {
+    pnl: parseFloat(pnl.toFixed(2)),
+    pnl_percent: parseFloat(pnl_percent.toFixed(2)),
+  };
 };
 
 /**
@@ -44,46 +43,101 @@ export const calculateRiskReward = (trade: {
 }): number => {
   const { entry, stop_loss, take_profit, side } = trade;
 
+  let risk: number;
+  let reward: number;
+
   if (side === 'BUY') {
-    const risk = entry - stop_loss;
-    const reward = take_profit - entry;
-    return risk > 0 ? parseFloat((reward / risk).toFixed(2)) : 0;
+    risk = entry - stop_loss;
+    reward = take_profit - entry;
   } else {
     // SELL
-    const risk = stop_loss - entry;
-    const reward = entry - take_profit;
-    return risk > 0 ? parseFloat((reward / risk).toFixed(2)) : 0;
+    risk = stop_loss - entry;
+    reward = entry - take_profit;
   }
+
+  if (risk <= 0) return 0; // avoid divide by zero
+  return parseFloat((reward / risk).toFixed(2));
 };
 
 /**
  * Create a new trade - Fully typed
  */
-export const createTrade = async (tradeData: Omit<Trade, 'id' | 'created_at'>): Promise<Trade> => {
+// export const createTrade = async (
+//   tradeData: Omit<Trade, 'id' | 'created_at'>
+// ): Promise<Trade> => {
+//   try {
+//     const pnlCalc = calculatePnL({
+//       side: tradeData.side,
+//       entry: tradeData.entry,
+//       exit_price: tradeData.exit_price,
+//       position_size: tradeData.position_size,
+//     });
+
+//     const rr = calculateRiskReward({
+//       entry: tradeData.entry,
+//       stop_loss: tradeData.stop_loss,
+//       take_profit: tradeData.take_profit,
+//       side: tradeData.side,
+//     });
+
+//     const finalData: Omit<Trade, 'id' | 'created_at'> = {
+//       ...tradeData,
+//       pnl: pnlCalc.pnl,
+//       pnl_percent: pnlCalc.pnl_percent,
+//       risk_reward: rr,
+//     };
+
+//     const { data, error } = await supabase
+//       .from('trades')
+//       .insert([finalData])
+//       .select();
+
+//     if (error) throw new Error(error.message);
+//     if (!data || data.length === 0) throw new Error('No trade returned');
+
+//     return data[0] as Trade;
+//   } catch (err) {
+//     console.error('[Trade Service] CreateTrade Error:', err);
+//     throw err instanceof Error ? err : new Error('Failed to create trade');
+//   }
+// };
+
+
+export const createTrade = async (
+  tradeData: Omit<Trade, 'id' | 'created_at'>
+): Promise<Trade> => {
   try {
-    // Calculate PnL if not already calculated
-    let finalData = { ...tradeData };
+    console.log('[Trade Service] Creating trade:', tradeData);
 
-    if (!finalData.pnl || !finalData.pnl_percent) {
-      const pnlCalc = calculatePnL({
-        side: finalData.side,
-        entry: finalData.entry,
-        exit_price: finalData.exit_price,
-        position_size: finalData.position_size,
-      });
-      finalData.pnl = pnlCalc.pnl;
-      finalData.pnl_percent = pnlCalc.pnl_percent;
-    }
+    // Ensure status is valid for DB constraint
+    const status = tradeData.status && ['OPEN', 'CLOSED'].includes(tradeData.status)
+      ? tradeData.status
+      : 'OPEN';
 
-    // Calculate R:R if not already calculated
-    if (!finalData.risk_reward || finalData.risk_reward === 0) {
-      finalData.risk_reward = calculateRiskReward({
-        entry: finalData.entry,
-        stop_loss: finalData.stop_loss,
-        take_profit: finalData.take_profit,
-        side: finalData.side,
-      });
-    }
+    const pnlCalc = calculatePnL({
+      side: tradeData.side,
+      entry: tradeData.entry,
+      exit_price: tradeData.exit_price,
+      position_size: tradeData.position_size,
+    });
+
+    const rr = calculateRiskReward({
+      entry: tradeData.entry,
+      stop_loss: tradeData.stop_loss,
+      take_profit: tradeData.take_profit,
+      side: tradeData.side,
+    });
+
+    const finalData: Omit<Trade, 'id' | 'created_at'> = {
+      ...tradeData,
+      pnl: pnlCalc.pnl,
+      pnl_percent: pnlCalc.pnl_percent,
+      risk_reward: rr,
+      status, // ✅ Ensure valid
+      opened_at: tradeData.opened_at || new Date().toISOString(),
+    };
+
+    console.log('[Trade Service] Final trade payload:', finalData);
 
     const { data, error } = await supabase
       .from('trades')
@@ -91,17 +145,20 @@ export const createTrade = async (tradeData: Omit<Trade, 'id' | 'created_at'>): 
       .select();
 
     if (error) {
-      throw new Error(`Failed to create trade: ${error.message}`);
+      console.error('[Trade Service] Supabase insert error:', error);
+      throw new Error(error.message);
     }
 
     if (!data || data.length === 0) {
-      throw new Error('No data returned from server');
+      console.error('[Trade Service] No trade returned after insert');
+      throw new Error('No trade returned');
     }
 
+    console.log('[Trade Service] Trade created successfully:', data[0]);
     return data[0] as Trade;
-  } catch (error) {
-    console.error('[Trade Service] Create error:', error);
-    throw error instanceof Error ? error : new Error('Failed to create trade');
+  } catch (err) {
+    console.error('[Trade Service] CreateTrade Error:', err);
+    throw err instanceof Error ? err : new Error('Failed to create trade');
   }
 };
 
@@ -158,22 +215,48 @@ export const getTradesByDateRange = async (
 /**
  * Update a trade - Fully typed
  */
-export const updateTrade = async (tradeId: string, updates: Partial<Trade>): Promise<Trade> => {
+export const updateTrade = async (
+  tradeId: string,
+  updates: Partial<Trade>
+): Promise<Trade> => {
   try {
-    // Recalculate PnL if relevant fields changed
-    if (updates.exit_price || updates.position_size || updates.side) {
-      const existingTrade = await supabase.from('trades').select('*').eq('id', tradeId).single();
-      if (existingTrade.data) {
-        const trade = { ...existingTrade.data, ...updates };
-        const pnlCalc = calculatePnL({
-          side: trade.side,
-          entry: trade.entry,
-          exit_price: trade.exit_price,
-          position_size: trade.position_size,
-        });
-        updates.pnl = pnlCalc.pnl;
-        updates.pnl_percent = pnlCalc.pnl_percent;
-      }
+    // Fetch existing trade
+    const { data: existingData, error: fetchError } = await supabase
+      .from('trades')
+      .select('*')
+      .eq('id', tradeId)
+      .single();
+
+    if (fetchError || !existingData) throw new Error('Trade not found');
+
+    const updatedTrade = { ...existingData, ...updates };
+
+    // Recalculate PnL & R:R if entry/exit/position/side/SL/TP changed
+    if (
+      updates.entry ||
+      updates.exit_price ||
+      updates.position_size ||
+      updates.side ||
+      updates.stop_loss ||
+      updates.take_profit
+    ) {
+      const pnlCalc = calculatePnL({
+        side: updatedTrade.side,
+        entry: updatedTrade.entry,
+        exit_price: updatedTrade.exit_price,
+        position_size: updatedTrade.position_size,
+      });
+
+      const rr = calculateRiskReward({
+        entry: updatedTrade.entry,
+        stop_loss: updatedTrade.stop_loss,
+        take_profit: updatedTrade.take_profit,
+        side: updatedTrade.side,
+      });
+
+      updates.pnl = pnlCalc.pnl;
+      updates.pnl_percent = pnlCalc.pnl_percent;
+      updates.risk_reward = rr;
     }
 
     const { data, error } = await supabase
@@ -182,18 +265,13 @@ export const updateTrade = async (tradeId: string, updates: Partial<Trade>): Pro
       .eq('id', tradeId)
       .select();
 
-    if (error) {
-      throw new Error(`Failed to update trade: ${error.message}`);
-    }
-
-    if (!data || data.length === 0) {
-      throw new Error('Trade not found');
-    }
+    if (error) throw new Error(error.message);
+    if (!data || data.length === 0) throw new Error('Trade not updated');
 
     return data[0] as Trade;
-  } catch (error) {
-    console.error('[Trade Service] Update error:', error);
-    throw error instanceof Error ? error : new Error('Failed to update trade');
+  } catch (err) {
+    console.error('[Trade Service] UpdateTrade Error:', err);
+    throw err instanceof Error ? err : new Error('Failed to update trade');
   }
 };
 

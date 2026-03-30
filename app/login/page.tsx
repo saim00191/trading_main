@@ -11,16 +11,32 @@ import { Button } from '@/components/auth/Button';
 import { setUser, setError, setLoading } from '@/store/authSlice';
 import { RootState, AppDispatch } from '@/store/store';
 import { validateEmail, validatePassword } from '@/lib/validation';
-import { setEmail } from '@/store/UserLoggedInSlice';
+import { selectUserEmail, setEmail } from '@/store/UserLoggedInSlice';
 import { loginUser, setupPersistence } from '@/lib/authService';
+import { FirebaseError } from 'firebase/app';
+import {AlreadySignedInModal} from '@/components/AlreadySignedIn';
+
+type AuthSuccessResponse = {
+  success: true;
+  user: unknown;
+};
+
+type AuthErrorResponse = {
+  success: false;
+  error: string;
+};
+
+type AuthResponse = AuthSuccessResponse | AuthErrorResponse;
 
 export default function LoginPage() {
+   const loggedInUserEmail = useSelector(selectUserEmail);
   const router = useRouter();
   const dispatch = useDispatch<AppDispatch>();
   const isAuthenticated = useSelector(
     (state: RootState) => state.auth.isAuthenticated
   );
 
+   const [showAlreadySignedInModal, setShowAlreadySignedInModal] = useState(false);
   const [formData, setFormData] = useState({
     email: '',
     password: '',
@@ -32,19 +48,23 @@ export default function LoginPage() {
   const [loginAttempts, setLoginAttempts] = useState(0);
   const [isRateLimited, setIsRateLimited] = useState(false);
 
-  // Set up Firebase persistence
   useEffect(() => {
     setupPersistence();
   }, []);
 
-  // Redirect if already authenticated
+  // Check if already logged in and show modal
   useEffect(() => {
-    if (isAuthenticated) {
+    if (loggedInUserEmail) {
+      setShowAlreadySignedInModal(true);
+    }
+  }, [loggedInUserEmail]);
+
+  // Redirect if already authenticated (after modal is dismissed)
+  useEffect(() => {
+    if (isAuthenticated && !showAlreadySignedInModal) {
       router.push('/dashboard');
     }
-  }, [isAuthenticated, router]);
-
- 
+  }, [isAuthenticated, showAlreadySignedInModal, router]);
 
   const handleChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     const { name, value } = e.target;
@@ -79,38 +99,114 @@ export default function LoginPage() {
     setErrors(newErrors);
     return Object.keys(newErrors).length === 0;
   };
-const handleSubmit = async (e: React.FormEvent) => {
-    e.preventDefault();
-    if (!validateForm()) return;
 
-    setIsLoadingState(true);
-    dispatch(setLoading(true));
 
-    try {
-      const result = await loginUser({ email: formData.email, password: formData.password });
-      if (result.success && result.user) {
-        if (rememberMe) localStorage.setItem('rememberMe', 'true');
+const getFirebaseErrorMessage = (raw: string): string => {
+  // Extract code inside parentheses if string is like "Firebase: Error (auth/...)"  
+  const match = raw.match(/\(([^)]+)\)/);
+  const code = match ? match[1] : raw;
 
-        dispatch(setUser(result.user));
-        dispatch(setEmail(formData.email)); // ✅ Save email to Redux + localStorage
+  switch (code) {
+    case 'auth/invalid-email':
+      return 'Please enter a valid email address.';
 
-        // console.log('Login successful:', result.user);
-        // console.log("Sending email to Redux:", formData.email);
+    case 'auth/user-disabled':
+      return 'This account has been disabled.';
 
-        router.push('/dashboard');
-      } else {
-        setErrors({ form: result.error || 'Login failed. Please try again.' });
+    case 'auth/user-not-found':
+      return 'No account found with this email.';
+
+    case 'auth/wrong-password':
+      return 'Incorrect password. Please try again.';
+
+    case 'auth/too-many-requests':
+      return 'Too many login attempts. Please try again later.';
+
+    case 'auth/network-request-failed':
+      return 'Network error. Please check your internet connection.';
+
+    case 'auth/invalid-credential':
+      return 'Invalid email or password.';
+
+    case 'auth/internal-error':
+      return 'Server error. Please try again later.';
+
+    case 'auth/operation-not-allowed':
+      return 'Email/password login is not enabled.';
+
+    default:
+      return 'Login failed. Please try again.';
+  }
+};
+
+const handleSubmit = async (e: React.FormEvent<HTMLFormElement>) => {
+  e.preventDefault();
+
+  if (!validateForm()) return;
+
+  setIsLoadingState(true);
+  dispatch(setLoading(true));
+
+  try {
+    const result = await loginUser({
+      email: formData.email,
+      password: formData.password,
+    });
+
+    console.log('Login result:', result);
+
+    if (result.success) {
+      if (rememberMe) {
+        localStorage.setItem('rememberMe', 'true');
       }
-    } catch {
-      setErrors({ form: 'An unexpected error occurred. Please try again.' });
-    } finally {
-      setIsLoadingState(false);
-      dispatch(setLoading(false));
-    }
-  };
 
+       if (!result.user) {
+    setErrors({ form: 'User data not found. Please try again.' });
+    return;
+  }
+
+      dispatch(setUser(result.user));
+      dispatch(setEmail(formData.email));
+
+      router.push('/dashboard');
+    } else {
+  
+
+      setErrors({
+        form: getFirebaseErrorMessage(result.error),
+      });
+    }
+  } catch (error: unknown) {
+    if (error instanceof FirebaseError) {
+    
+      setErrors({
+        form: getFirebaseErrorMessage(`Firebase: Error (${error.code})`),
+      });
+    } else if (error instanceof Error) {
+
+      setErrors({
+        form: error.message,
+      });
+    } else {
+   
+      setErrors({
+        form: 'Login failed. Please try again.',
+      });
+    }
+  } finally {
+    setIsLoadingState(false);
+    dispatch(setLoading(false));
+  }
+};
 
   return (
+    <>
+    
+    
+  <AlreadySignedInModal
+      isOpen={showAlreadySignedInModal}
+  
+    />
     <AuthLayout
       title="Welcome Back"
       subtitle="Sign in to your trading journal"
@@ -184,5 +280,6 @@ const handleSubmit = async (e: React.FormEvent) => {
         </p>
       </form>
     </AuthLayout>
+    </>
   );
 }
